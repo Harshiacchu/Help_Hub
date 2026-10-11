@@ -1,0 +1,260 @@
+✅ ABHINAY'S FILES CREATED - TENANT REGISTRATION & USER AUTHENTICATION
+
+================================================================================
+📁 FILES CREATED ON YOUR LOCAL MACHINE
+================================================================================
+
+Location: C:\Users\shart\OneDrive\Desktop\Help_Hub\Help_Hub\
+
+All files below have been created with TODO comments. You will add database 
+functions separately!
+
+================================================================================
+📄 FRONTEND FILES (HTML + CSS + JavaScript)
+================================================================================
+
+public/pages/
+├── register-tenant.html       ✅ Organization registration form
+├── login.html                 ✅ User login form
+└── register.html              ✅ User registration form
+
+public/css/
+└── auth.css                   ✅ Styling for all auth pages
+
+public/js/auth/
+├── register-tenant.js         ✅ Handle tenant registration submission
+├── login.js                   ✅ Handle user login submission
+└── register.js                ✅ Handle user registration submission
+
+================================================================================
+⚙️ BACKEND FILES (Express Routes + Models + Middleware)
+================================================================================
+
+server/routes/
+├── auth.js                    ✅ All auth endpoints
+│   - POST /api/v1/auth/register-tenant
+│   - POST /api/v1/auth/register
+│   - POST /api/v1/auth/login
+│   - POST /api/v1/auth/logout
+│   - GET /api/v1/auth/me
+│
+└── tenants.js                 ✅ All tenant management endpoints
+    - GET /api/v1/tenants/:tenantId
+    - PUT /api/v1/tenants/:tenantId
+    - POST /api/v1/tenants/:tenantId/share-codes
+    - GET /api/v1/tenants/:tenantId/agents
+    - POST /api/v1/tenants/:tenantId/agents/:agentId/deactivate
+
+server/models/
+├── tenant.js                  ✅ Tenant database operations (TODO: implement)
+│   - create()
+│   - findById()
+│   - findBySlug()
+│   - update()
+│   - updateSLA()
+│   - generateShareCode()
+│   - validateShareCode()
+│   - revokeShareCode()
+│
+└── user.js                    ✅ User database operations (TODO: implement)
+    - create()
+    - findByEmail()
+    - findById()
+    - findByIdWithPassword()
+    - findByTenantAndRole()
+    - updateProfile()
+    - updateStatus()
+    - changePassword()
+    - delete()
+
+server/middleware/
+└── tenantResolution.js        ✅ Extract tenant from request (TODO: implement)
+    - tenantResolution()       - Extract tenant from session/API key/URL
+    - requireTenant()          - Middleware to check tenant exists
+    - requireTenantAdmin()     - Middleware to check admin role
+
+server/
+├── index.js                   ✅ Express server setup
+│   - Sets up middleware
+│   - Registers routes
+│   - Error handling
+│
+└── config/
+    └── (TODO: db.js, passport.js)
+
+================================================================================
+🎯 FEATURE 1: TENANT REGISTRATION & AGENT INVITE
+================================================================================
+
+USER FLOW:
+1. Admin visits register-tenant.html
+2. Fills in: Company Name, Slug, Support Email, SLA targets
+3. Submits form → POST /api/v1/auth/register-tenant
+4. Backend generates share code and saves tenant
+5. Share code displayed to admin
+6. Admin gives share code to agents to join
+
+FILES INVOLVED:
+✅ public/pages/register-tenant.html
+✅ public/js/auth/register-tenant.js
+✅ server/routes/auth.js (register-tenant endpoint)
+✅ server/models/tenant.js (database functions - TODO)
+✅ server/middleware/tenantResolution.js (context extraction)
+
+WHAT YOU NEED TO IMPLEMENT (Database Functions):
+In server/models/tenant.js:
+  1. create() - Insert tenant into DB
+  2. findBySlug() - Check if slug exists
+  3. generateShareCode() - Create random code + store
+  4. validateShareCode() - Verify code exists and not expired
+
+================================================================================
+🎯 FEATURE 2: USER AUTHENTICATION (Login/Register/Logout)
+================================================================================
+
+USER FLOW - REGISTER:
+1. Agent visits register.html with share code
+2. Fills in: Email, Password, Name, Share Code
+3. Submits form → POST /api/v1/auth/register
+4. Backend validates share code → creates user
+5. Redirects to login.html
+
+USER FLOW - LOGIN:
+1. User visits login.html
+2. Fills in: Email, Password
+3. Submits form → POST /api/v1/auth/login
+4. Backend validates password → creates session
+5. Redirects to dashboard (role-dependent)
+
+USER FLOW - LOGOUT:
+1. User clicks logout
+2. POST /api/v1/auth/logout
+3. Session destroyed
+4. Redirect to login.html
+
+FILES INVOLVED:
+✅ public/pages/register.html
+✅ public/pages/login.html
+✅ public/js/auth/register.js
+✅ public/js/auth/login.js
+✅ server/routes/auth.js (register, login, logout endpoints)
+✅ server/models/user.js (database functions - TODO)
+
+WHAT YOU NEED TO IMPLEMENT (Database Functions):
+In server/models/user.js:
+  1. create() - Insert user into DB with hashed password
+  2. findByEmail() - Lookup user by email + tenantId
+  3. findByIdWithPassword() - Get user including password hash
+  4. updateStatus() - Mark user as active/inactive
+
+In server/routes/auth.js (uncomment and implement):
+  1. Hash password with bcrypt before saving
+  2. Validate email unique per tenant
+  3. Create session on login
+
+================================================================================
+📝 ENDPOINT REFERENCE
+================================================================================
+
+TENANT ROUTES (in server/routes/auth.js):
+
+POST /api/v1/auth/register-tenant
+  Body: {
+    name: "Company Name",
+    slug: "company-slug",
+    supportEmailAlias: "support@company.com",
+    slaTargets: { low: 48, normal: 24, high: 4, urgent: 1 }
+  }
+  Returns: { tenantId, slug, shareCode }
+
+POST /api/v1/auth/register
+  Body: {
+    email: "user@company.com",
+    password: "Password123",
+    name: "User Name",
+    shareCode: "SHARE_abc123"
+  }
+  Returns: { userId, email, name, role }
+
+POST /api/v1/auth/login
+  Body: {
+    email: "user@company.com",
+    password: "Password123",
+    rememberMe: false
+  }
+  Returns: { userId, email, name, role, tenantId }
+
+POST /api/v1/auth/logout
+  Returns: { success: true }
+
+GET /api/v1/auth/me
+  Returns: { userId, email, name, role }
+
+================================================================================
+🚀 NEXT STEPS TO IMPLEMENT
+================================================================================
+
+STEP 1: Set up database connection
+  File: server/config/db.js
+  - Connect to MongoDB
+  - Export database instance
+  - Export collections
+
+STEP 2: Implement database functions
+  Files:
+  - server/models/tenant.js (all 8 functions)
+  - server/models/user.js (all 9 functions)
+
+  Key functions:
+  ✅ Validate email format
+  ✅ Hash passwords with bcrypt
+  ✅ Generate random share codes
+  ✅ Check for unique emails/slugs per tenant
+
+STEP 3: Update routes to use database
+  File: server/routes/auth.js
+  - Uncomment TODO sections
+  - Call model functions
+  - Pass real data to frontend
+
+STEP 4: Set up middleware
+  File: server/config/passport.js
+  - Configure Passport local strategy
+  - Serialize/deserialize user
+  
+  File: server/index.js
+  - Add middleware registration
+  - Connect to database
+
+STEP 5: Test
+  npm start
+  Visit: http://localhost:3000/pages/register-tenant.html
+  Try registering organization → get share code
+  Visit: http://localhost:3000/pages/register.html
+  Try registering user with share code
+  Visit: http://localhost:3000/pages/login.html
+  Try logging in
+
+================================================================================
+📊 CURRENT FILE SUMMARY
+================================================================================
+
+Frontend Files:       3 HTML pages + 3 JS files + 1 CSS file
+Backend Routes:       2 route files with 8 endpoints
+Backend Models:       2 model files with placeholders
+Backend Middleware:   1 middleware file
+Server Setup:         1 index.js file
+
+Total:               ~13 files created, ready for database implementation
+
+================================================================================
+✅ YOU'RE READY!
+
+All files are on your Windows machine at:
+C:\Users\shart\OneDrive\Desktop\Help_Hub\Help_Hub\
+
+Next: Implement database functions in server/models/
+
+Then: Test the forms and routes!
+
+================================================================================
