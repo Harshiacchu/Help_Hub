@@ -1,9 +1,9 @@
 // server/config/db.js - MongoDB Atlas connection (native driver)
 //
 // MONGODB_URI comes from .env, e.g.
-//   mongodb+srv://<db_username>:<db_password>@helphub.xemb4n8.mongodb.net/?appName=HelpHub
+//   mongodb+srv://<db_username>:<db_password>@<cluster>.mongodb.net/?appName=HelpHub
 
-const { MongoClient, ObjectId } = require("mongodb");
+import { MongoClient, ObjectId } from "mongodb";
 
 const DB_NAME = process.env.DB_NAME || "helpHub";
 
@@ -159,7 +159,7 @@ function isDuplicateKeyError(error) {
   return Boolean(error) && error.code === 11000;
 }
 
-module.exports = {
+export {
   DB_NAME,
   connectDB,
   getDB,

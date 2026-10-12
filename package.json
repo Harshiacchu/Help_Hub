@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "Multi-tenant service desk for customer support",
   "main": "server/index.js",
+  "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/scripts/seed.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -44,7 +46,6 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.11.0",
-    "nodemon": "^3.1.4",
     "prettier": "^3.3.3"
   }
 }

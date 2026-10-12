@@ -4,9 +4,9 @@
 // - Stored in the "sessions" collection, so it survives server restarts
 // - connect-mongo creates the TTL index that deletes expired sessions
 
-const crypto = require("crypto");
-const session = require("express-session");
-const MongoStore = require("connect-mongo");
+import crypto from "node:crypto";
+import session from "express-session";
+import MongoStore from "connect-mongo";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE_NAME = "sessionId";
@@ -19,16 +19,13 @@ const COOKIE_OPTIONS = Object.freeze({
   path: "/",
 });
 
+// No fallback value: a secret written into the code would be a leaked secret
 function getSessionSecret() {
   const secret = process.env.SESSION_SECRET;
-  if (secret) return secret;
-  if (isProduction) {
-    throw new Error("SESSION_SECRET must be set in production.");
+  if (!secret) {
+    throw new Error("SESSION_SECRET is not set. Add it to your .env file.");
   }
-  console.warn(
-    "SESSION_SECRET is not set - using an insecure development secret."
-  );
-  return "dev-only-insecure-session-secret";
+  return secret;
 }
 
 function createSessionMiddleware(mongoClient, dbName) {
@@ -53,8 +50,4 @@ function createSessionMiddleware(mongoClient, dbName) {
   });
 }
 
-module.exports = {
-  createSessionMiddleware,
-  SESSION_COOKIE_NAME,
-  COOKIE_OPTIONS,
-};
+export { createSessionMiddleware, SESSION_COOKIE_NAME, COOKIE_OPTIONS };

@@ -29,4 +29,4 @@ function requireTenant(req, res, next) {
   next();
 }
 
-module.exports = { tenantResolution, requireTenant };
+export { tenantResolution, requireTenant };

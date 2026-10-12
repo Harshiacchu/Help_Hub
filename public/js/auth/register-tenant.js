@@ -57,9 +57,9 @@ form.addEventListener("submit", async (event) => {
     document.getElementById("slugValue").textContent = slug;
     document.getElementById("continueToRegister").href =
       `register.html?code=${encodeURIComponent(shareCode)}&org=${encodeURIComponent(slug)}`;
-    document.getElementById("registrationResult").style.display = "block";
+    document.getElementById("registrationResult").classList.remove("d-none");
     alertContainer.replaceChildren();
-    form.style.display = "none";
+    form.classList.add("d-none");
   } catch (error) {
     showAlert(error.message, "danger", alertContainer);
     button.disabled = false;

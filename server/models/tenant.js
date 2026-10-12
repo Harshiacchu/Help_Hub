@@ -1,12 +1,12 @@
 // server/models/tenant.js - Tenants (organizations) and invite share codes
 
-const crypto = require("crypto");
-const { mustObjectId, toObjectId } = require("../config/db");
-const {
+import crypto from "node:crypto";
+import { mustObjectId, toObjectId } from "../config/db.js";
+import {
   ROLES,
   DEFAULT_SLA_TARGETS,
   ValidationError,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const SHARE_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -182,4 +182,4 @@ class TenantModel {
   }
 }
 
-module.exports = TenantModel;
+export default TenantModel;

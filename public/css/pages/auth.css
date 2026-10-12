@@ -1,0 +1,32 @@
+/* pages/auth.css - Login, register and register-organization pages */
+
+body {
+  background-color: var(--color-surface-muted);
+}
+
+.card-body {
+  background-color: var(--color-surface);
+}
+
+.card-title {
+  font-size: 1.75rem;
+}
+
+.text-center a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.text-center a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 576px) {
+  .card-body {
+    padding: 1.5rem !important;
+  }
+
+  .card-title {
+    font-size: 1.5rem;
+  }
+}

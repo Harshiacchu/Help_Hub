@@ -4,21 +4,24 @@
 // (Previously the session middleware was added after the routes, so req.session
 // was undefined inside every route.)
 
-require("dotenv").config();
+// Must be the first import: loads .env before any other module reads process.env
+import "dotenv/config";
 
-const path = require("path");
-const express = require("express");
+import { fileURLToPath } from "node:url";
+import express from "express";
 
-const {
-  connectDB,
-  getDB,
-  getClient,
-  closeDB,
-  DB_NAME,
-} = require("./config/db");
-const { createSessionMiddleware } = require("./config/session");
-const { tenantResolution } = require("./middleware/tenantResolution");
-const { requireAuth, requireRole } = require("./middleware/auth");
+import { connectDB, getDB, getClient, closeDB, DB_NAME } from "./config/db.js";
+import { createSessionMiddleware } from "./config/session.js";
+import { tenantResolution } from "./middleware/tenantResolution.js";
+import { requireAuth, requireRole } from "./middleware/auth.js";
+import authRoutes from "./routes/auth.js";
+import tenantRoutes from "./routes/tenants.js";
+import adminRoutes from "./routes/admin.js";
+import apiKeyRoutes from "./routes/apiKeys.js";
+import rulesRoutes from "./routes/rules.js";
+
+// ES modules have no __dirname, so resolve the folder from this file's URL
+const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === "production";
@@ -33,32 +36,30 @@ function createApp(mongoClient) {
   app.use(express.urlencoded({ extended: false, limit: "100kb" }));
 
   // Static files don't need a session
-  app.use(express.static(path.join(__dirname, "../public")));
+  app.use(express.static(PUBLIC_DIR));
 
   app.use(createSessionMiddleware(mongoClient, DB_NAME));
   app.use(tenantResolution);
 
   // ===== Abhinay's routes =====
-  app.use("/api/v1/auth", require("./routes/auth"));
-  app.use("/api/v1/tenants", requireAuth, require("./routes/tenants"));
-  app.use(
-    "/api/v1/admin",
-    requireAuth,
-    requireRole("superior"),
-    require("./routes/admin")
-  );
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/tenants", requireAuth, tenantRoutes);
+  app.use("/api/v1/admin", requireAuth, requireRole("superior"), adminRoutes);
   app.use(
     "/api/v1/api-keys",
     requireAuth,
     requireRole("superior"),
-    require("./routes/apiKeys")
+    apiKeyRoutes
   );
-  app.use("/api/v1/rules", requireAuth, require("./routes/rules"));
+  app.use("/api/v1/rules", requireAuth, rulesRoutes);
 
   // ===== Emily's routes go here =====
-  // const apiKeyAuth = require('./middleware/apiKeyAuth');
-  // const { requireTenant } = require('./middleware/tenantResolution');
-  // app.use('/api/v1/tickets', apiKeyAuth.optional, requireTenant, require('./routes/tickets'));
+  // Add these imports at the top of the file:
+  //   import apiKeyAuth from "./middleware/apiKeyAuth.js";
+  //   import { requireTenant } from "./middleware/tenantResolution.js";
+  //   import ticketRoutes from "./routes/tickets.js";
+  // Then mount (session OR X-API-Key can create tickets):
+  //   app.use("/api/v1/tickets", apiKeyAuth.optional, requireTenant, ticketRoutes);
 
   app.get("/", (req, res) => res.redirect("/pages/login.html"));
 
@@ -124,8 +125,4 @@ async function start() {
   }
 }
 
-if (require.main === module) {
-  start();
-}
-
-module.exports = { createApp, start };
+start();

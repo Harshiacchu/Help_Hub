@@ -13,19 +13,19 @@
 // GET    /:tenantId                         any role   (own tenant only)
 // PUT    /:tenantId                         superior   { name, supportEmailAlias }
 
-const express = require("express");
-const { getDB } = require("../config/db");
-const { requireRole, asyncHandler } = require("../middleware/auth");
-const TenantModel = require("../models/tenant");
-const UserModel = require("../models/user");
-const {
+import express from "express";
+import { getDB } from "../config/db.js";
+import { requireRole, asyncHandler } from "../middleware/auth.js";
+import TenantModel from "../models/tenant.js";
+import UserModel from "../models/user.js";
+import {
   ROLES,
   STAFF_ROLES,
   ValidationError,
   assertRole,
   assertEmail,
   cleanText,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const router = express.Router();
 const superiorOnly = requireRole("superior");
@@ -186,4 +186,4 @@ router.put(
   })
 );
 
-module.exports = router;
+export default router;

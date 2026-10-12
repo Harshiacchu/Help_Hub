@@ -6,17 +6,17 @@
 // POST /api/v1/auth/logout
 // GET  /api/v1/auth/me
 
-const express = require("express");
-const bcrypt = require("bcrypt");
-const rateLimitModule = require("express-rate-limit");
+import express from "express";
+import bcrypt from "bcrypt";
+import { rateLimit } from "express-rate-limit";
 
-const { getDB, isDuplicateKeyError } = require("../config/db");
-const { SESSION_COOKIE_NAME, COOKIE_OPTIONS } = require("../config/session");
-const { requireAuth, asyncHandler } = require("../middleware/auth");
-const TenantModel = require("../models/tenant");
-const UserModel = require("../models/user");
-const RulesModel = require("../models/rules");
-const {
+import { getDB, isDuplicateKeyError } from "../config/db.js";
+import { SESSION_COOKIE_NAME, COOKIE_OPTIONS } from "../config/session.js";
+import { requireAuth, asyncHandler } from "../middleware/auth.js";
+import TenantModel from "../models/tenant.js";
+import UserModel from "../models/user.js";
+import RulesModel from "../models/rules.js";
+import {
   ValidationError,
   DEFAULT_SLA_TARGETS,
   assertEmail,
@@ -24,11 +24,9 @@ const {
   assertSlug,
   cleanText,
   validateSlaTargets,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const router = express.Router();
-const rateLimit =
-  rateLimitModule.rateLimit || rateLimitModule.default || rateLimitModule;
 
 const SALT_ROUNDS = 10;
 // Compared against when the user doesn't exist, so "no such user" and
@@ -381,4 +379,4 @@ router.get(
   })
 );
 
-module.exports = router;
+export default router;

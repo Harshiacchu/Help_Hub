@@ -1,0 +1,31 @@
+/* components/tabs.css - Underlined tab navigation */
+
+.nav-tabs {
+  border-bottom: 2px solid var(--color-border-light);
+  gap: 1rem;
+}
+
+.nav-tabs .nav-link {
+  color: var(--color-text-muted);
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 500;
+}
+
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: none;
+}
+
+@media (max-width: 768px) {
+  .nav-tabs {
+    gap: 0.5rem;
+  }
+
+  .nav-tabs .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+}

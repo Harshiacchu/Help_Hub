@@ -7,8 +7,8 @@
 //
 // On success: req.tenantId, req.apiKeyId and req.source = 'api'
 
-const { getDB } = require("../config/db");
-const ApiKeyModel = require("../models/apiKey");
+import { getDB } from "../config/db.js";
+import ApiKeyModel from "../models/apiKey.js";
 
 async function apiKeyAuth(req, res, next) {
   const apiKey = req.get("X-API-Key"); // header lookup is case-insensitive
@@ -64,4 +64,4 @@ apiKeyAuth.optional = function optionalApiKeyAuth(req, res, next) {
   return apiKeyAuth(req, res, next);
 };
 
-module.exports = apiKeyAuth;
+export default apiKeyAuth;

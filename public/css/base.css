@@ -1,0 +1,64 @@
+/* base.css - Design tokens and element defaults shared by every page */
+
+:root {
+  --color-primary: #0d6efd;
+  --color-primary-hover: #0b5ed7;
+  --color-success-hover: #157347;
+  --color-danger-hover: #bb2d3b;
+  --color-focus-ring: rgba(13, 110, 253, 0.25);
+
+  --color-text: #333;
+  --color-text-secondary: #495057;
+  --color-text-muted: #6c757d;
+  --color-border: #dee2e6;
+  --color-border-light: #e9ecef;
+  --color-surface: #fff;
+  --color-surface-muted: #f8f9fa;
+
+  --radius-sm: 0.25rem;
+  --radius: 0.375rem;
+  --radius-lg: 0.5rem;
+
+  --font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+}
+
+h5 {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+h6 {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+code {
+  background-color: var(--color-surface-muted);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+
+small.text-muted {
+  font-size: 0.8rem;
+}
+
+hr {
+  color: var(--color-border-light);
+}
+
+/* Space between a Font Awesome icon and the text after it */
+.fas {
+  margin-right: 0.5rem;
+}

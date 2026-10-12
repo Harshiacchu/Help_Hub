@@ -8,13 +8,13 @@
 // Response time = first public comment by someone other than the customer.
 // All dates are grouped in UTC.
 
-const { mustObjectId } = require("../config/db");
-const RulesModel = require("../models/rules");
-const {
+import { mustObjectId } from "../config/db.js";
+import RulesModel from "../models/rules.js";
+import {
   assertPriority,
   parseDateParam,
   ValidationError,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const EXPORT_ROW_LIMIT = 10000;
@@ -508,4 +508,4 @@ class AnalyticsController {
   }
 }
 
-module.exports = AnalyticsController;
+export default AnalyticsController;

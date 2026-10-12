@@ -7,6 +7,7 @@ import { copyText, escapeHtml, showAlert } from "../common/ui.js";
 const SLA_LEVELS = ["critical", "high", "medium", "low", "minimal"];
 
 let currentUser = null;
+let customFields = [];
 
 const $ = (id) => document.getElementById(id);
 const fmt1 = (n) => (typeof n === "number" ? n.toFixed(1) : "0.0");
@@ -78,9 +79,11 @@ function analyticsQuery() {
   const startDate = $("analyticsStartDate").value;
   const endDate = $("analyticsEndDate").value;
   const priority = $("analyticsPriority").value;
+  const category = $("analyticsCategory").value;
   if (startDate) query.append("startDate", startDate);
   if (endDate) query.append("endDate", endDate);
   if (priority) query.append("priority", priority);
+  if (category) query.append("category", category);
   return query;
 }
 
@@ -146,7 +149,7 @@ async function loadAnalytics() {
         </div>
         <div class="col-md-4">
           <h6>Resolved per Day</h6>
-          <div style="max-height: 260px; overflow-y: auto">
+          <div class="table-scroll">
             <table class="table table-sm">
               <thead><tr><th>Date</th><th>Resolved</th></tr></thead>
               <tbody>${trendRows}</tbody>
@@ -198,7 +201,7 @@ async function loadApiKeys() {
 function showNewKey(key) {
   $("displayedKey").textContent = key;
   $("copyKeyButton").textContent = "Copy";
-  $("newKeyDisplay").style.display = "block";
+  $("newKeyDisplay").classList.remove("d-none");
 }
 
 async function createApiKey() {
@@ -316,7 +319,7 @@ async function createShareCode() {
     copy.textContent = "Copy invite link";
     copy.addEventListener("click", () => copyText(inviteLink(data.code), copy));
     box.replaceChildren(text, copy);
-    box.style.display = "block";
+    box.classList.remove("d-none");
     await loadShareCodes();
   } catch (error) {
     showAlert(error.message, "danger");
@@ -395,6 +398,90 @@ function applyPriorityLabels(labels) {
   }
 }
 
+function applyCategoryFilterOptions(categories) {
+  const select = $("analyticsCategory");
+  const current = select.value;
+  select.replaceChildren(
+    new Option("All", ""),
+    ...categories.map((category) => new Option(category, category))
+  );
+  if (categories.includes(current)) select.value = current;
+}
+
+function renderCustomFields() {
+  document.querySelector("#customFieldsTable tbody").innerHTML =
+    customFields
+      .map(
+        (field, index) => `
+          <tr>
+            <td><code>${escapeHtml(field.key)}</code></td>
+            <td>${escapeHtml(field.label)}</td>
+            <td>${escapeHtml(field.type)}</td>
+            <td>${field.required ? "Yes" : "No"}</td>
+            <td>${escapeHtml((field.options || []).join(", "))}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-field" data-index="${index}">Remove</button>
+            </td>
+          </tr>`
+      )
+      .join("") ||
+    '<tr><td colspan="6" class="text-muted">No custom fields yet</td></tr>';
+}
+
+/** Saves the whole list; the server validates it and returns the clean version. */
+async function saveCustomFields(nextFields, successMessage) {
+  try {
+    const { data } = await api("/api/v1/rules/custom-fields", {
+      method: "PUT",
+      body: { customFields: nextFields },
+    });
+    customFields = data;
+    renderCustomFields();
+    showAlert(successMessage, "success");
+    return true;
+  } catch (error) {
+    showAlert(error.message, "danger");
+    return false;
+  }
+}
+
+async function addCustomField(event) {
+  event.preventDefault();
+  const form = event.currentTarget; // read before any await
+  const field = {
+    key: $("fieldKey").value.trim(),
+    label: $("fieldLabel").value.trim(),
+    type: $("fieldType").value,
+    required: $("fieldRequired").checked,
+  };
+  if (field.type === "select") {
+    field.options = $("fieldOptions")
+      .value.split(",")
+      .map((option) => option.trim())
+      .filter(Boolean);
+  }
+  if (await saveCustomFields([...customFields, field], "Custom field added")) {
+    form.reset();
+    toggleOptionsInput();
+  }
+}
+
+function removeCustomField(index) {
+  const field = customFields[index];
+  if (!field || !confirm(`Remove the "${field.label}" field?`)) return;
+  saveCustomFields(
+    customFields.filter((_, i) => i !== index),
+    "Custom field removed"
+  );
+}
+
+/** Dropdown options only apply to the "Dropdown" type. */
+function toggleOptionsInput() {
+  const isSelect = $("fieldType").value === "select";
+  $("fieldOptions").disabled = !isSelect;
+  $("fieldOptions").required = isSelect;
+}
+
 async function loadRules() {
   try {
     const { data } = await api("/api/v1/rules");
@@ -408,6 +495,9 @@ async function loadRules() {
     }
     $("categoriesInput").value = data.categories.join("\n");
     applyPriorityLabels(data.priorities);
+    applyCategoryFilterOptions(data.categories);
+    customFields = data.customFields;
+    renderCustomFields();
   } catch (error) {
     console.error("Load rules error:", error);
     showAlert("Failed to load configuration: " + error.message, "danger");
@@ -462,7 +552,45 @@ async function updateCategories() {
       body: { categories },
     });
     $("categoriesInput").value = data.join("\n");
+    applyCategoryFilterOptions(data);
     showAlert("Categories updated", "success");
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
+}
+
+// ============================================
+// ORGANIZATION
+// ============================================
+
+function tenantUrl() {
+  return `/api/v1/tenants/${encodeURIComponent(currentUser.tenantId)}`;
+}
+
+async function loadOrganization() {
+  try {
+    const { data } = await api(tenantUrl());
+    $("orgName").value = data.name;
+    $("orgSupportEmail").value = data.supportEmailAlias;
+    $("orgSlug").value = data.slug;
+  } catch (error) {
+    console.error("Organization load error:", error);
+    showAlert("Failed to load organization: " + error.message, "danger");
+  }
+}
+
+async function saveOrganization(event) {
+  event.preventDefault();
+  try {
+    const { data } = await api(tenantUrl(), {
+      method: "PUT",
+      body: {
+        name: $("orgName").value.trim(),
+        supportEmailAlias: $("orgSupportEmail").value.trim(),
+      },
+    });
+    $("tenantName").textContent = `${data.name} - ${currentUser.name}`;
+    showAlert("Organization updated", "success");
   } catch (error) {
     showAlert(error.message, "danger");
   }
@@ -496,6 +624,9 @@ function bindEvents() {
   $("savePrioritiesButton").addEventListener("click", updatePriorities);
   $("saveSlaButton").addEventListener("click", updateSla);
   $("saveCategoriesButton").addEventListener("click", updateCategories);
+  $("customFieldForm").addEventListener("submit", addCustomField);
+  $("fieldType").addEventListener("change", toggleOptionsInput);
+  $("organizationForm").addEventListener("submit", saveOrganization);
 
   // Row buttons are rendered dynamically, so listen on the table bodies
   document
@@ -518,6 +649,13 @@ function bindEvents() {
       if (button.dataset.action === "cancel") {
         cancelShareCode(button.dataset.code);
       }
+    });
+
+  document
+    .querySelector("#customFieldsTable tbody")
+    .addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action=remove-field]");
+      if (button) removeCustomField(Number(button.dataset.index));
     });
 
   document
@@ -555,6 +693,7 @@ async function init() {
     loadApiKeys(),
     loadTeam(),
     loadShareCodes(),
+    loadOrganization(),
   ]);
 }
 

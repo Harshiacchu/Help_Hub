@@ -6,11 +6,11 @@
 // DELETE /:keyId           revoke
 // POST   /:keyId/rotate    revoke + issue a replacement with the same name
 
-const express = require("express");
-const { getDB } = require("../config/db");
-const { asyncHandler } = require("../middleware/auth");
-const ApiKeyModel = require("../models/apiKey");
-const { ValidationError, cleanText } = require("../utils/validators");
+import express from "express";
+import { getDB } from "../config/db.js";
+import { asyncHandler } from "../middleware/auth.js";
+import ApiKeyModel from "../models/apiKey.js";
+import { ValidationError, cleanText } from "../utils/validators.js";
 
 const router = express.Router();
 
@@ -99,4 +99,4 @@ router.post(
   })
 );
 
-module.exports = router;
+export default router;

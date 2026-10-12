@@ -157,7 +157,7 @@ function parseDateParam(value, field, { endOfDay = false } = {}) {
   return date;
 }
 
-module.exports = {
+export {
   ValidationError,
   ROLES,
   STAFF_ROLES,

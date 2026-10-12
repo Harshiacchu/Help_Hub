@@ -1,0 +1,27 @@
+/* components/tables.css - Data tables */
+
+.table {
+  margin-bottom: 0;
+}
+
+.table th {
+  background-color: var(--color-surface-muted);
+  border-color: var(--color-border-light);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.table tbody tr:hover {
+  background-color: var(--color-surface-muted);
+}
+
+.table code {
+  color: #d63384;
+  font-size: 0.85rem;
+}
+
+/* A table that scrolls inside a fixed-height box instead of growing the page */
+.table-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+}

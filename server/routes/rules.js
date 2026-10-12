@@ -8,10 +8,10 @@
 // PUT /sla-targets        { critical: 2, high: 4, medium: 8, low: 24, minimal: 48 }
 // PUT /custom-fields      { customFields: [{ key, label, type, required, options }] }
 
-const express = require("express");
-const { getDB } = require("../config/db");
-const { requireRole, asyncHandler } = require("../middleware/auth");
-const RulesModel = require("../models/rules");
+import express from "express";
+import { getDB } from "../config/db.js";
+import { requireRole, asyncHandler } from "../middleware/auth.js";
+import RulesModel from "../models/rules.js";
 
 const router = express.Router();
 const superiorOnly = requireRole("superior");
@@ -76,4 +76,4 @@ router.put(
   })
 );
 
-module.exports = router;
+export default router;

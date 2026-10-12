@@ -7,11 +7,11 @@
 // GET /sla
 // PUT /sla                { critical, high, medium, low, minimal }  (hours, 1-168)
 
-const express = require("express");
-const { getDB } = require("../config/db");
-const { asyncHandler } = require("../middleware/auth");
-const AnalyticsController = require("../controllers/analyticsController");
-const RulesModel = require("../models/rules");
+import express from "express";
+import { getDB } from "../config/db.js";
+import { asyncHandler } from "../middleware/auth.js";
+import AnalyticsController from "../controllers/analyticsController.js";
+import RulesModel from "../models/rules.js";
 
 const router = express.Router();
 
@@ -84,4 +84,4 @@ router.put(
   })
 );
 
-module.exports = router;
+export default router;

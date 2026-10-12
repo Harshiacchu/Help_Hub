@@ -3,13 +3,13 @@
 // Every method takes tenantId, and every query filters by it, so a user id
 // from one company can never read or change a user in another company.
 
-const { mustObjectId, toObjectId } = require("../config/db");
-const {
+import { mustObjectId, toObjectId } from "../config/db.js";
+import {
   ROLES,
   USER_STATUSES,
   ValidationError,
   normalizeEmail,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const MAX_FAILED_LOGINS = 5;
 const LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
@@ -41,24 +41,28 @@ class UserModel {
     );
   }
 
-  /** Throws the driver's duplicate-key error (code 11000) if the email already exists in this tenant. */
-  async create({ tenantId, email, passwordHash, name, role }) {
+  /** Builds a new user document. Shared by create() and the seed script. */
+  static newDocument({ tenantId, email, passwordHash, name, role }) {
     if (!ROLES.includes(role)) throw new ValidationError("Invalid role");
-
-    const user = {
+    const now = new Date();
+    return {
       tenantId: mustObjectId(tenantId, "tenant id"),
       email: normalizeEmail(email),
       passwordHash,
       name,
       role,
       status: "active",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
       lastLogin: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
     };
+  }
 
+  /** Throws the driver's duplicate-key error (code 11000) if the email already exists in this tenant. */
+  async create(fields) {
+    const user = UserModel.newDocument(fields);
     const result = await this.collection.insertOne(user);
     return UserModel.toPublic({ ...user, _id: result.insertedId });
   }
@@ -167,4 +171,4 @@ class UserModel {
   }
 }
 
-module.exports = UserModel;
+export default UserModel;

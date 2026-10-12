@@ -4,14 +4,14 @@
 // categories, SLA targets and custom fields. Emily's ticket code should read
 // these through this model (e.g. getSlaHoursForPriority) so both halves agree.
 
-const { mustObjectId, toObjectId } = require("../config/db");
-const {
+import { mustObjectId, toObjectId } from "../config/db.js";
+import {
   ValidationError,
   DEFAULT_SLA_TARGETS,
   PRIORITY_TO_SLA_LEVEL,
   validateSlaTargets,
   assertPriority,
-} = require("../utils/validators");
+} from "../utils/validators.js";
 
 const RULE_NAMES = Object.freeze({
   PRIORITY_LABELS: "priority_labels",
@@ -346,4 +346,4 @@ class RulesModel {
   }
 }
 
-module.exports = RulesModel;
+export default RulesModel;

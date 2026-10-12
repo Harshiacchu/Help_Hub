@@ -3,8 +3,8 @@
 // Keys look like: hh_<40 hex chars>   (160 bits from crypto.randomBytes)
 // Only a SHA-256 hash is stored. The full key is returned once, at creation.
 
-const crypto = require("crypto");
-const { mustObjectId, toObjectId } = require("../config/db");
+import crypto from "node:crypto";
+import { mustObjectId, toObjectId } from "../config/db.js";
 
 const KEY_PREFIX = "hh_";
 const KEY_PATTERN = /^hh_[a-f0-9]{40}$/;
@@ -142,4 +142,4 @@ class ApiKeyModel {
 
 ApiKeyModel.MAX_KEYS_PER_TENANT = MAX_KEYS_PER_TENANT;
 
-module.exports = ApiKeyModel;
+export default ApiKeyModel;
