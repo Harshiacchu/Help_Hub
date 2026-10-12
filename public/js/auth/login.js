@@ -1,68 +1,77 @@
-// login.js - User Login
-// Handles user login form submission
+// public/js/auth/login.js - Login (organization + email + password)
 
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+import { requestJson } from "../common/api.js";
+import { showAlert } from "../common/ui.js";
 
-    const formData = {
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        rememberMe: document.getElementById('rememberMe').checked
-    };
+const ROLE_HOME = {
+  superior: "/pages/admin-dashboard.html",
+  agent: "/pages/agent-queue.html", // Emily's page
+  customer: "/pages/my-tickets.html", // Emily's page
+};
+const LAST_ORG_KEY = "helphub.lastOrg";
 
-    try {
-        // POST to backend
-        const response = await fetch('/api/v1/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData),
-            credentials: 'include' // Send cookies (session)
-        });
+const form = document.getElementById("loginForm");
+const alertContainer = document.getElementById("alertContainer");
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Login failed');
-        }
-
-        // Success - store user info and redirect to dashboard
-        console.log('Login successful', result);
-        
-        // Store user info in localStorage (optional)
-        localStorage.setItem('user', JSON.stringify(result.user));
-        
-        // Show success message
-        showAlert('Login successful! Redirecting...', 'success');
-        
-        // Redirect to dashboard
-        setTimeout(() => {
-            // Redirect based on user role
-            if (result.user.role === 'admin') {
-                window.location.href = '/pages/admin-dashboard.html';
-            } else if (result.user.role === 'agent') {
-                window.location.href = '/pages/agent-queue.html';
-            } else if (result.user.role === 'customer') {
-                window.location.href = '/pages/my-tickets.html';
-            } else {
-                window.location.href = '/pages/dashboard.html';
-            }
-        }, 1500);
-
-    } catch (error) {
-        console.error('Login error:', error);
-        showAlert(error.message, 'danger');
-    }
-});
-
-// Show alert message
-function showAlert(message, type = 'info') {
-    const alertContainer = document.getElementById('alertContainer');
-    alertContainer.innerHTML = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+function goHome(role) {
+  window.location.href = ROLE_HOME[role] || "/pages/login.html";
 }
+
+function readSavedOrganization() {
+  try {
+    return localStorage.getItem(LAST_ORG_KEY);
+  } catch {
+    return null; // storage can be blocked by the browser
+  }
+}
+
+function saveOrganization(slug) {
+  try {
+    localStorage.setItem(LAST_ORG_KEY, slug);
+  } catch {
+    // not critical - the user just types the organization next time
+  }
+}
+
+// Prefill organization from ?org=... (after registering) or from the last login
+const org =
+  new URLSearchParams(window.location.search).get("org") ||
+  readSavedOrganization();
+if (org) {
+  document.getElementById("tenantSlug").value = org;
+  document.getElementById("email").focus();
+}
+
+// Already logged in? Skip the form.
+requestJson("/api/v1/auth/me")
+  .then((result) => goHome(result.user.role))
+  .catch(() => {});
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = form.querySelector('button[type="submit"]');
+
+  const credentials = {
+    tenantSlug: document
+      .getElementById("tenantSlug")
+      .value.trim()
+      .toLowerCase(),
+    email: document.getElementById("email").value.trim(),
+    password: document.getElementById("password").value,
+    rememberMe: document.getElementById("rememberMe").checked,
+  };
+
+  button.disabled = true;
+  try {
+    const result = await requestJson("/api/v1/auth/login", {
+      method: "POST",
+      body: credentials,
+    });
+    saveOrganization(result.user.tenantSlug);
+    showAlert("Login successful! Redirecting...", "success", alertContainer);
+    setTimeout(() => goHome(result.user.role), 600);
+  } catch (error) {
+    showAlert(error.message, "danger", alertContainer);
+    button.disabled = false;
+  }
+});

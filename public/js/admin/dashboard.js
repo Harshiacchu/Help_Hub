@@ -1,160 +1,168 @@
-// public/js/admin/dashboard.js - Admin Dashboard Logic
-// Loads metrics, analytics, API keys, and rules configuration
+// public/js/admin/dashboard.js - Admin dashboard (superior role only)
+// Dashboard metrics, analytics, API keys, team invites and configuration.
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadDashboard();
-    await loadApiKeys();
-    await loadRules();
-});
+import { requestJson } from "../common/api.js";
+import { copyText, escapeHtml, showAlert } from "../common/ui.js";
+
+const SLA_LEVELS = ["critical", "high", "medium", "low", "minimal"];
+
+let currentUser = null;
+
+const $ = (id) => document.getElementById(id);
+const fmt1 = (n) => (typeof n === "number" ? n.toFixed(1) : "0.0");
+const fmtDate = (d) => (d ? new Date(d).toLocaleString() : "Never");
+
+/** Every dashboard request sends expired sessions back to the login page. */
+function api(url, options = {}) {
+  return requestJson(url, { ...options, redirectOn401: true });
+}
 
 // ============================================
 // DASHBOARD METRICS
 // ============================================
 
 async function loadDashboard() {
-    try {
-        const response = await fetch('/api/v1/admin/dashboard', {
-            credentials: 'include'
-        });
+  try {
+    const { data } = await api("/api/v1/admin/dashboard");
 
-        if (!response.ok) throw new Error('Failed to load dashboard');
+    $("totalTickets").textContent = data.totalTickets;
+    $("openTickets").textContent = data.openTickets;
+    $("inProgressTickets").textContent = data.inProgressTickets;
+    $("pendingTickets").textContent = data.pendingTickets;
+    $("closedTickets").textContent = data.closedTickets;
+    $("slaCompliance").textContent = fmt1(data.slaCompliance) + "%";
+    $("avgResponseTime").textContent = fmt1(data.avgResponseTime);
+    $("avgResolutionTime").textContent = fmt1(data.avgResolutionTime);
 
-        const result = await response.json();
-        const data = result.data;
+    $("priorityStats").innerHTML =
+      Object.entries(data.ticketsByPriority)
+        .map(
+          ([label, count]) =>
+            `<p class="mb-1"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(count)}</p>`
+        )
+        .join("") || '<p class="text-muted mb-0">No tickets yet</p>';
 
-        // Update cards
-        document.getElementById('totalTickets').textContent = data.totalTickets;
-        document.getElementById('openTickets').textContent = data.openTickets;
-        document.getElementById('inProgressTickets').textContent = data.inProgressTickets;
-        document.getElementById('pendingTickets').textContent = data.pendingTickets;
-        document.getElementById('closedTickets').textContent = data.closedTickets;
-        document.getElementById('slaCompliance').textContent = data.slaCompliance.toFixed(1) + '%';
-        document.getElementById('avgResponseTime').textContent = data.avgResponseTime.toFixed(1);
-        document.getElementById('avgResolutionTime').textContent = data.avgResolutionTime.toFixed(1);
+    $("topCategories").innerHTML =
+      data.topCategories
+        .map(
+          (c) =>
+            `<p class="mb-1"><strong>${escapeHtml(c.category)}:</strong> ${escapeHtml(c.count)}</p>`
+        )
+        .join("") || '<p class="text-muted mb-0">No tickets yet</p>';
 
-        // Priority stats
-        const priorityHtml = Object.entries(data.ticketsByPriority)
-            .map(([priority, count]) => `<p class="mb-1"><strong>${priority.charAt(0).toUpperCase() + priority.slice(1)}:</strong> ${count}</p>`)
-            .join('');
-        document.getElementById('priorityStats').innerHTML = priorityHtml;
-
-        // Top categories
-        const categoriesHtml = data.topCategories
-            .map(cat => `<p class="mb-1"><strong>${cat.category}:</strong> ${cat.count}</p>`)
-            .join('');
-        document.getElementById('topCategories').innerHTML = categoriesHtml;
-
-        // Agent workload
-        const tbody = document.querySelector('#agentWorkloadTable tbody');
-        tbody.innerHTML = data.agentWorkload
-            .map(agent => `
-                <tr>
-                    <td>${agent.name}</td>
-                    <td>${agent.ticketCount}</td>
-                    <td>${agent.avgResolutionTime.toFixed(1)} hours</td>
-                    <td>${agent.slaMet}/${agent.ticketCount}</td>
-                </tr>
-            `)
-            .join('');
-
-    } catch (error) {
-        console.error('Dashboard load error:', error);
-        showAlert('Failed to load dashboard metrics', 'danger');
-    }
+    document.querySelector("#agentWorkloadTable tbody").innerHTML =
+      data.agentWorkload
+        .map(
+          (a) => `
+            <tr>
+              <td>${escapeHtml(a.name)}</td>
+              <td>${escapeHtml(a.ticketCount)}</td>
+              <td>${fmt1(a.avgResolutionTime)} hours</td>
+              <td>${escapeHtml(a.slaMet)}/${escapeHtml(a.ticketCount)}</td>
+            </tr>`
+        )
+        .join("") ||
+      '<tr><td colspan="4" class="text-muted">No agents yet - invite them from the Team tab</td></tr>';
+  } catch (error) {
+    console.error("Dashboard load error:", error);
+    showAlert("Failed to load dashboard metrics: " + error.message, "danger");
+  }
 }
 
 // ============================================
 // ANALYTICS
 // ============================================
 
+function analyticsQuery() {
+  const query = new URLSearchParams();
+  const startDate = $("analyticsStartDate").value;
+  const endDate = $("analyticsEndDate").value;
+  const priority = $("analyticsPriority").value;
+  if (startDate) query.append("startDate", startDate);
+  if (endDate) query.append("endDate", endDate);
+  if (priority) query.append("priority", priority);
+  return query;
+}
+
 async function loadAnalytics() {
-    try {
-        const startDate = document.getElementById('analyticsStartDate').value;
-        const endDate = document.getElementById('analyticsEndDate').value;
-        const priority = document.getElementById('analyticsPriority').value;
+  try {
+    const { data } = await api(`/api/v1/admin/analytics?${analyticsQuery()}`);
 
-        const query = new URLSearchParams();
-        if (startDate) query.append('startDate', startDate);
-        if (endDate) query.append('endDate', endDate);
-        if (priority) query.append('priority', priority);
+    const slaRows = Object.entries(data.slaByPriority)
+      .map(
+        ([label, pct]) =>
+          `<li class="list-group-item">${escapeHtml(label)}: ${fmt1(pct)}%</li>`
+      )
+      .join("");
 
-        const response = await fetch(`/api/v1/admin/analytics?${query}`, {
-            credentials: 'include'
-        });
+    const responseRows =
+      data.responseTimeByCategory
+        .map(
+          (c) =>
+            `<li class="list-group-item">${escapeHtml(c.category)}: ${fmt1(c.avgResponseTime)} hours</li>`
+        )
+        .join("") ||
+      '<li class="list-group-item text-muted">No replied tickets in this range</li>';
 
-        if (!response.ok) throw new Error('Failed to load analytics');
+    const quarterRows = Object.entries(data.quarterlyMetrics)
+      .map(
+        ([q, m]) => `
+          <tr>
+            <td>${escapeHtml(q)}</td>
+            <td>${escapeHtml(m.ticketsCreated)}</td>
+            <td>${escapeHtml(m.resolved)}</td>
+            <td>${fmt1(m.slaCompliance)}%</td>
+          </tr>`
+      )
+      .join("");
 
-        const result = await response.json();
-        const data = result.data;
+    const trendRows =
+      data.resolutionTrend
+        .map(
+          (d) =>
+            `<tr><td>${escapeHtml(d.date)}</td><td>${escapeHtml(d.resolved)}</td></tr>`
+        )
+        .join("") ||
+      '<tr><td colspan="2" class="text-muted">No tickets resolved in this range</td></tr>';
 
-        // Build analytics display
-        let html = `
-            <div class="row mt-3">
-                <div class="col-md-6">
-                    <h6>SLA Compliance by Priority</h6>
-                    <ul class="list-group">
-        `;
+    $("analyticsResults").innerHTML = `
+      <div class="row mt-3">
+        <div class="col-md-6">
+          <h6>SLA Compliance by Priority</h6>
+          <ul class="list-group">${slaRows}</ul>
+        </div>
+        <div class="col-md-6">
+          <h6>Response Time by Category</h6>
+          <ul class="list-group">${responseRows}</ul>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col-md-8">
+          <h6>Quarterly Metrics (${escapeHtml(data.filters.year)})</h6>
+          <table class="table table-sm">
+            <thead><tr><th>Quarter</th><th>Created</th><th>Resolved</th><th>SLA Compliance</th></tr></thead>
+            <tbody>${quarterRows}</tbody>
+          </table>
+        </div>
+        <div class="col-md-4">
+          <h6>Resolved per Day</h6>
+          <div style="max-height: 260px; overflow-y: auto">
+            <table class="table table-sm">
+              <thead><tr><th>Date</th><th>Resolved</th></tr></thead>
+              <tbody>${trendRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  } catch (error) {
+    console.error("Analytics load error:", error);
+    showAlert("Failed to load analytics: " + error.message, "danger");
+  }
+}
 
-        Object.entries(data.slaByPriority).forEach(([priority, compliance]) => {
-            html += `<li class="list-group-item">${priority}: ${compliance.toFixed(1)}%</li>`;
-        });
-
-        html += `
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h6>Response Time by Category</h6>
-                    <ul class="list-group">
-        `;
-
-        data.responseTimeByCategory.forEach(cat => {
-            html += `<li class="list-group-item">${cat.category}: ${cat.avgResponseTime.toFixed(1)} hours</li>`;
-        });
-
-        html += `
-                    </ul>
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-12">
-                    <h6>Quarterly Metrics</h6>
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Quarter</th>
-                                <th>Created</th>
-                                <th>Resolved</th>
-                                <th>SLA Compliance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        `;
-
-        Object.entries(data.quarterlyMetrics).forEach(([quarter, metrics]) => {
-            html += `
-                <tr>
-                    <td>${quarter}</td>
-                    <td>${metrics.ticketsCreated}</td>
-                    <td>${metrics.resolved}</td>
-                    <td>${metrics.slaCompliance.toFixed(1)}%</td>
-                </tr>
-            `;
-        });
-
-        html += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('analyticsResults').innerHTML = html;
-
-    } catch (error) {
-        console.error('Analytics load error:', error);
-        showAlert('Failed to load analytics', 'danger');
-    }
+function exportAnalytics() {
+  // A plain navigation sends the session cookie and lets the browser download the CSV
+  window.location.href = `/api/v1/admin/analytics/export?${analyticsQuery()}`;
 }
 
 // ============================================
@@ -162,219 +170,392 @@ async function loadAnalytics() {
 // ============================================
 
 async function loadApiKeys() {
-    try {
-        const response = await fetch('/api/v1/api-keys', {
-            credentials: 'include'
-        });
+  try {
+    const { data } = await api("/api/v1/api-keys");
+    document.querySelector("#apiKeysTable tbody").innerHTML =
+      data
+        .map(
+          (key) => `
+            <tr>
+              <td>${escapeHtml(key.name)}</td>
+              <td><code>${escapeHtml(key.prefix)}…</code></td>
+              <td>${escapeHtml(new Date(key.createdAt).toLocaleDateString())}</td>
+              <td>${escapeHtml(fmtDate(key.lastUsedAt))}</td>
+              <td>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="rotate" data-id="${escapeHtml(key.keyId)}">Rotate</button>
+                <button type="button" class="btn btn-sm btn-danger" data-action="revoke" data-id="${escapeHtml(key.keyId)}">Revoke</button>
+              </td>
+            </tr>`
+        )
+        .join("") ||
+      '<tr><td colspan="5" class="text-muted">No active API keys</td></tr>';
+  } catch (error) {
+    console.error("API keys load error:", error);
+    showAlert("Failed to load API keys: " + error.message, "danger");
+  }
+}
 
-        if (!response.ok) throw new Error('Failed to load API keys');
-
-        const result = await response.json();
-        const tbody = document.querySelector('#apiKeysTable tbody');
-
-        tbody.innerHTML = result.data
-            .map(key => `
-                <tr>
-                    <td>${key.name}</td>
-                    <td><code>${key.prefix}</code></td>
-                    <td>${new Date(key.createdAt).toLocaleDateString()}</td>
-                    <td>${key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'Never'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-danger" onclick="revokeApiKey('${key.keyId}')">
-                            Revoke
-                        </button>
-                    </td>
-                </tr>
-            `)
-            .join('');
-
-    } catch (error) {
-        console.error('API keys load error:', error);
-    }
+function showNewKey(key) {
+  $("displayedKey").textContent = key;
+  $("copyKeyButton").textContent = "Copy";
+  $("newKeyDisplay").style.display = "block";
 }
 
 async function createApiKey() {
-    try {
-        const name = document.getElementById('apiKeyName').value;
-
-        if (!name) {
-            showAlert('Please enter a key name', 'warning');
-            return;
-        }
-
-        const response = await fetch('/api/v1/api-keys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name }),
-            credentials: 'include'
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) throw new Error(result.error);
-
-        // Display the key
-        document.getElementById('displayedKey').textContent = result.data.key;
-        document.getElementById('newKeyDisplay').style.display = 'block';
-        document.getElementById('apiKeyName').value = '';
-
-        // Reload keys list
-        await loadApiKeys();
-        showAlert('API key created successfully!', 'success');
-
-    } catch (error) {
-        console.error('Create API key error:', error);
-        showAlert(error.message, 'danger');
-    }
+  const input = $("apiKeyName");
+  const name = input.value.trim();
+  if (!name) {
+    showAlert("Please enter a key name", "warning");
+    return;
+  }
+  try {
+    const result = await api("/api/v1/api-keys", {
+      method: "POST",
+      body: { name },
+    });
+    showNewKey(result.data.key);
+    input.value = "";
+    await loadApiKeys();
+    showAlert(
+      "API key created. Copy it now - it will not be shown again.",
+      "success"
+    );
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
 }
 
 async function revokeApiKey(keyId) {
-    if (!confirm('Revoke this API key? It will no longer work.')) return;
+  if (
+    !confirm(
+      "Revoke this API key? Systems using it will stop working immediately."
+    )
+  ) {
+    return;
+  }
+  try {
+    await api(`/api/v1/api-keys/${encodeURIComponent(keyId)}`, {
+      method: "DELETE",
+    });
+    showAlert("API key revoked", "success");
+    await loadApiKeys();
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
+}
 
-    try {
-        const response = await fetch(`/api/v1/api-keys/${keyId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
+async function rotateApiKey(keyId) {
+  if (
+    !confirm(
+      "Rotate this key? The old key stops working now and a new one is issued."
+    )
+  ) {
+    return;
+  }
+  try {
+    const result = await api(
+      `/api/v1/api-keys/${encodeURIComponent(keyId)}/rotate`,
+      { method: "POST" }
+    );
+    showNewKey(result.data.key);
+    await loadApiKeys();
+    showAlert(
+      "Key rotated. Copy the new key now - it will not be shown again.",
+      "success"
+    );
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
+}
 
-        if (!response.ok) throw new Error('Failed to revoke key');
+// ============================================
+// TEAM & INVITES
+// ============================================
 
-        showAlert('API key revoked', 'success');
-        await loadApiKeys();
+function inviteLink(code) {
+  return `${window.location.origin}/pages/register.html?code=${encodeURIComponent(code)}`;
+}
 
-    } catch (error) {
-        console.error('Revoke error:', error);
-        showAlert('Failed to revoke API key', 'danger');
-    }
+async function loadShareCodes() {
+  try {
+    const { data } = await api("/api/v1/tenants/share-codes");
+    document.querySelector("#shareCodesTable tbody").innerHTML =
+      data
+        .map(
+          (c) => `
+            <tr>
+              <td><code>${escapeHtml(c.code)}</code></td>
+              <td>${escapeHtml(c.role)}</td>
+              <td>${escapeHtml(fmtDate(c.expiresAt))}</td>
+              <td>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="copy-link" data-code="${escapeHtml(c.code)}">Copy invite link</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-action="cancel" data-code="${escapeHtml(c.code)}">Cancel</button>
+              </td>
+            </tr>`
+        )
+        .join("") ||
+      '<tr><td colspan="4" class="text-muted">No unused share codes</td></tr>';
+  } catch (error) {
+    console.error("Share codes load error:", error);
+  }
+}
+
+async function createShareCode() {
+  const role = $("inviteRole").value;
+  try {
+    const { data } = await api("/api/v1/tenants/share-codes", {
+      method: "POST",
+      body: { role },
+    });
+    const box = $("newShareCode");
+    const text = document.createElement("span");
+    text.innerHTML = `New <strong>${escapeHtml(data.role)}</strong> code: <code>${escapeHtml(data.code)}</code> (expires ${escapeHtml(fmtDate(data.expiresAt))}) `;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "btn btn-sm btn-outline-dark ms-2";
+    copy.textContent = "Copy invite link";
+    copy.addEventListener("click", () => copyText(inviteLink(data.code), copy));
+    box.replaceChildren(text, copy);
+    box.style.display = "block";
+    await loadShareCodes();
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
+}
+
+async function cancelShareCode(code) {
+  if (!confirm("Cancel this share code?")) return;
+  try {
+    await api(`/api/v1/tenants/share-codes/${encodeURIComponent(code)}`, {
+      method: "DELETE",
+    });
+    await loadShareCodes();
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
+}
+
+async function loadTeam() {
+  try {
+    const { data } = await api("/api/v1/tenants/agents");
+    document.querySelector("#teamTable tbody").innerHTML = data
+      .map((u) => {
+        const isMe = u.userId === currentUser.userId;
+        const active = u.status === "active";
+        const action = isMe
+          ? '<span class="text-muted small">You</span>'
+          : `<button type="button" class="btn btn-sm ${active ? "btn-outline-danger" : "btn-outline-success"}"
+               data-action="${active ? "deactivate" : "reactivate"}" data-id="${escapeHtml(u.userId)}">
+               ${active ? "Deactivate" : "Reactivate"}
+             </button>`;
+        return `
+          <tr>
+            <td>${escapeHtml(u.name)}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${escapeHtml(u.role)}</td>
+            <td><span class="badge ${active ? "bg-success" : "bg-secondary"}">${escapeHtml(u.status)}</span></td>
+            <td>${escapeHtml(fmtDate(u.lastLogin))}</td>
+            <td>${action}</td>
+          </tr>`;
+      })
+      .join("");
+  } catch (error) {
+    console.error("Team load error:", error);
+    showAlert("Failed to load team: " + error.message, "danger");
+  }
+}
+
+async function setMemberStatus(userId, action) {
+  if (
+    action === "deactivate" &&
+    !confirm("Deactivate this user? They will be signed out immediately.")
+  ) {
+    return;
+  }
+  try {
+    await api(
+      `/api/v1/tenants/agents/${encodeURIComponent(userId)}/${action}`,
+      { method: "POST" }
+    );
+    await Promise.all([loadTeam(), loadDashboard()]);
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
 }
 
 // ============================================
 // RULES & CONFIGURATION
 // ============================================
 
-async function loadRules() {
-    try {
-        const response = await fetch('/api/v1/rules', {
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to load rules');
-
-        const result = await response.json();
-        const data = result.data;
-
-        // Load priorities
-        document.querySelector('#prioritiesForm input[name="p1"]').value = data.priorities[1];
-        document.querySelector('#prioritiesForm input[name="p2"]').value = data.priorities[2];
-        document.querySelector('#prioritiesForm input[name="p3"]').value = data.priorities[3];
-        document.querySelector('#prioritiesForm input[name="p4"]').value = data.priorities[4];
-        document.querySelector('#prioritiesForm input[name="p5"]').value = data.priorities[5];
-
-        // Load SLA
-        document.querySelector('#slaForm input[name="critical"]').value = data.slaTargets.critical;
-        document.querySelector('#slaForm input[name="high"]').value = data.slaTargets.high;
-        document.querySelector('#slaForm input[name="medium"]').value = data.slaTargets.medium;
-        document.querySelector('#slaForm input[name="low"]').value = data.slaTargets.low;
-        document.querySelector('#slaForm input[name="minimal"]').value = data.slaTargets.minimal;
-
-        // Load categories
-        document.getElementById('categoriesInput').value = data.categories.join(', ');
-
-    } catch (error) {
-        console.error('Load rules error:', error);
+function applyPriorityLabels(labels) {
+  for (const option of $("analyticsPriority").options) {
+    if (option.value) {
+      option.textContent = `${option.value} - ${labels[option.value]}`;
     }
+  }
+}
+
+async function loadRules() {
+  try {
+    const { data } = await api("/api/v1/rules");
+    for (let level = 1; level <= 5; level++) {
+      document.querySelector(`#prioritiesForm input[name="p${level}"]`).value =
+        data.priorities[level];
+    }
+    for (const level of SLA_LEVELS) {
+      document.querySelector(`#slaForm input[name="${level}"]`).value =
+        data.slaTargets[level];
+    }
+    $("categoriesInput").value = data.categories.join("\n");
+    applyPriorityLabels(data.priorities);
+  } catch (error) {
+    console.error("Load rules error:", error);
+    showAlert("Failed to load configuration: " + error.message, "danger");
+  }
 }
 
 async function updatePriorities() {
-    try {
-        const priorities = {
-            1: document.querySelector('#prioritiesForm input[name="p1"]').value,
-            2: document.querySelector('#prioritiesForm input[name="p2"]').value,
-            3: document.querySelector('#prioritiesForm input[name="p3"]').value,
-            4: document.querySelector('#prioritiesForm input[name="p4"]').value,
-            5: document.querySelector('#prioritiesForm input[name="p5"]').value
-        };
-
-        const response = await fetch('/api/v1/rules/priorities', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(priorities),
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to update priorities');
-
-        showAlert('Priorities updated successfully', 'success');
-
-    } catch (error) {
-        showAlert(error.message, 'danger');
-    }
+  const priorities = {};
+  for (let level = 1; level <= 5; level++) {
+    priorities[level] = document
+      .querySelector(`#prioritiesForm input[name="p${level}"]`)
+      .value.trim();
+  }
+  try {
+    const { data } = await api("/api/v1/rules/priorities", {
+      method: "PUT",
+      body: priorities,
+    });
+    applyPriorityLabels(data);
+    showAlert("Priorities updated", "success");
+    await loadDashboard();
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
 }
 
-async function updateSLA() {
-    try {
-        const slaTargets = {
-            critical: parseInt(document.querySelector('#slaForm input[name="critical"]').value),
-            high: parseInt(document.querySelector('#slaForm input[name="high"]').value),
-            medium: parseInt(document.querySelector('#slaForm input[name="medium"]').value),
-            low: parseInt(document.querySelector('#slaForm input[name="low"]').value),
-            minimal: parseInt(document.querySelector('#slaForm input[name="minimal"]').value)
-        };
-
-        const response = await fetch('/api/v1/rules/sla-targets', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(slaTargets),
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to update SLA');
-
-        showAlert('SLA targets updated successfully', 'success');
-
-    } catch (error) {
-        showAlert(error.message, 'danger');
-    }
+async function updateSla() {
+  const slaTargets = {};
+  for (const level of SLA_LEVELS) {
+    slaTargets[level] = parseInt(
+      document.querySelector(`#slaForm input[name="${level}"]`).value,
+      10
+    );
+  }
+  try {
+    await api("/api/v1/rules/sla-targets", { method: "PUT", body: slaTargets });
+    showAlert("SLA targets updated", "success");
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
 }
 
 async function updateCategories() {
-    try {
-        const categories = document.getElementById('categoriesInput').value
-            .split(',')
-            .map(c => c.trim())
-            .filter(c => c);
-
-        const response = await fetch('/api/v1/rules/categories', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ categories }),
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to update categories');
-
-        showAlert('Categories updated successfully', 'success');
-
-    } catch (error) {
-        showAlert(error.message, 'danger');
-    }
+  // One per line, so category names can contain commas
+  const categories = $("categoriesInput")
+    .value.split("\n")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  try {
+    const { data } = await api("/api/v1/rules/categories", {
+      method: "PUT",
+      body: { categories },
+    });
+    $("categoriesInput").value = data.join("\n");
+    showAlert("Categories updated", "success");
+  } catch (error) {
+    showAlert(error.message, "danger");
+  }
 }
 
 // ============================================
-// UTILITIES
+// LOGOUT
 // ============================================
 
-function showAlert(message, type = 'info') {
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} alert-dismissible fade show`;
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.body.insertBefore(alert, document.body.firstChild);
+async function logout() {
+  try {
+    await requestJson("/api/v1/auth/logout", { method: "POST" });
+  } finally {
+    window.location.href = "/pages/login.html";
+  }
 }
 
-function logout() {
-    fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' })
-        .then(() => window.location.href = '/pages/login.html');
+// ============================================
+// EVENT WIRING (no inline onclick attributes)
+// ============================================
+
+function bindEvents() {
+  $("logoutButton").addEventListener("click", logout);
+  $("loadAnalyticsButton").addEventListener("click", loadAnalytics);
+  $("exportCsvButton").addEventListener("click", exportAnalytics);
+  $("createApiKeyButton").addEventListener("click", createApiKey);
+  $("copyKeyButton").addEventListener("click", (event) =>
+    copyText($("displayedKey").textContent, event.currentTarget)
+  );
+  $("createShareCodeButton").addEventListener("click", createShareCode);
+  $("savePrioritiesButton").addEventListener("click", updatePriorities);
+  $("saveSlaButton").addEventListener("click", updateSla);
+  $("saveCategoriesButton").addEventListener("click", updateCategories);
+
+  // Row buttons are rendered dynamically, so listen on the table bodies
+  document
+    .querySelector("#apiKeysTable tbody")
+    .addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      if (button.dataset.action === "revoke") revokeApiKey(button.dataset.id);
+      if (button.dataset.action === "rotate") rotateApiKey(button.dataset.id);
+    });
+
+  document
+    .querySelector("#shareCodesTable tbody")
+    .addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      if (button.dataset.action === "copy-link") {
+        copyText(inviteLink(button.dataset.code), button);
+      }
+      if (button.dataset.action === "cancel") {
+        cancelShareCode(button.dataset.code);
+      }
+    });
+
+  document
+    .querySelector("#teamTable tbody")
+    .addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (button) setMemberStatus(button.dataset.id, button.dataset.action);
+    });
 }
+
+// ============================================
+// STARTUP
+// ============================================
+
+async function init() {
+  bindEvents();
+
+  try {
+    const me = await api("/api/v1/auth/me");
+    currentUser = me.user;
+  } catch {
+    return; // api() already redirected to login
+  }
+
+  if (currentUser.role !== "superior") {
+    window.location.href = "/pages/login.html";
+    return;
+  }
+  $("tenantName").textContent =
+    `${currentUser.tenantName || ""} - ${currentUser.name}`;
+
+  await loadRules(); // first, so custom priority labels are known
+  await Promise.all([
+    loadDashboard(),
+    loadApiKeys(),
+    loadTeam(),
+    loadShareCodes(),
+  ]);
+}
+
+init();

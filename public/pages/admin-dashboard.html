@@ -1,328 +1,541 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - HelpHub</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/admin.css">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body>
     <nav class="navbar navbar-dark bg-dark">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <i class="fas fa-chart-line"></i> HelpHub Admin Dashboard
-            </span>
-            <div>
-                <span id="tenantName" class="text-light me-3"></span>
-                <a href="#" class="btn btn-sm btn-outline-light" onclick="logout()">Logout</a>
-            </div>
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">
+          <i class="fas fa-chart-line"></i> HelpHub Admin Dashboard
+        </span>
+        <div>
+          <span id="tenantName" class="text-light me-3"></span>
+          <button
+            type="button"
+            id="logoutButton"
+            class="btn btn-sm btn-outline-light"
+          >
+            Logout
+          </button>
         </div>
+      </div>
     </nav>
 
     <div class="container-fluid mt-4">
-        <!-- Tab Navigation -->
-        <ul class="nav nav-tabs mb-4" id="adminTabs">
-            <li class="nav-item">
-                <a class="nav-link active" href="#dashboard" data-bs-toggle="tab">Dashboard</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#analytics" data-bs-toggle="tab">Analytics</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#api-keys" data-bs-toggle="tab">API Keys</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#rules" data-bs-toggle="tab">Configuration</a>
-            </li>
-        </ul>
+      <!-- Tab Navigation -->
+      <ul class="nav nav-tabs mb-4" id="adminTabs">
+        <li class="nav-item">
+          <a class="nav-link active" href="#dashboard" data-bs-toggle="tab"
+            >Dashboard</a
+          >
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#analytics" data-bs-toggle="tab"
+            >Analytics</a
+          >
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#api-keys" data-bs-toggle="tab">API Keys</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#team" data-bs-toggle="tab">Team</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#rules" data-bs-toggle="tab"
+            >Configuration</a
+          >
+        </li>
+      </ul>
 
-        <div class="tab-content">
-            <!-- DASHBOARD TAB -->
-            <div class="tab-pane fade show active" id="dashboard">
-                <div class="row mb-4">
-                    <!-- Ticket Stats Cards -->
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">Total Tickets</h6>
-                                <h2 id="totalTickets">0</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-warning text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">Open</h6>
-                                <h2 id="openTickets">0</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">In Progress</h6>
-                                <h2 id="inProgressTickets">0</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-secondary text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">Pending</h6>
-                                <h2 id="pendingTickets">0</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">Closed</h6>
-                                <h2 id="closedTickets">0</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <div class="card bg-danger text-white">
-                            <div class="card-body">
-                                <h6 class="card-title">SLA Compliance</h6>
-                                <h2 id="slaCompliance">0%</h2>
-                            </div>
-                        </div>
-                    </div>
+      <div class="tab-content">
+        <!-- DASHBOARD TAB -->
+        <div class="tab-pane fade show active" id="dashboard">
+          <div class="row mb-4">
+            <!-- Ticket Stats Cards -->
+            <div class="col-md-2 mb-3">
+              <div class="card bg-primary text-white">
+                <div class="card-body">
+                  <h6 class="card-title">Total Tickets</h6>
+                  <h2 id="totalTickets">0</h2>
                 </div>
-
-                <div class="row">
-                    <!-- Response Time Stats -->
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Response Times</h5>
-                                <p class="mb-1">
-                                    <strong>Avg Response:</strong> <span id="avgResponseTime">0</span> hours
-                                </p>
-                                <p class="mb-0">
-                                    <strong>Avg Resolution:</strong> <span id="avgResolutionTime">0</span> hours
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tickets by Priority -->
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">By Priority</h5>
-                                <div id="priorityStats"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Top Categories -->
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Top Categories</h5>
-                                <div id="topCategories"></div>
-                            </div>
-                        </div>
-                    </div>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <div class="card bg-warning text-white">
+                <div class="card-body">
+                  <h6 class="card-title">Open</h6>
+                  <h2 id="openTickets">0</h2>
                 </div>
-
-                <!-- Agent Workload -->
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Agent Workload</h5>
-                                <table class="table table-sm" id="agentWorkloadTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Agent Name</th>
-                                            <th>Assigned Tickets</th>
-                                            <th>Avg Resolution Time</th>
-                                            <th>SLA Met</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <div class="card bg-info text-white">
+                <div class="card-body">
+                  <h6 class="card-title">In Progress</h6>
+                  <h2 id="inProgressTickets">0</h2>
                 </div>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <div class="card bg-secondary text-white">
+                <div class="card-body">
+                  <h6 class="card-title">Pending</h6>
+                  <h2 id="pendingTickets">0</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <div class="card bg-success text-white">
+                <div class="card-body">
+                  <h6 class="card-title">Closed</h6>
+                  <h2 id="closedTickets">0</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <div class="card bg-danger text-white">
+                <div class="card-body">
+                  <h6 class="card-title">SLA Compliance</h6>
+                  <h2 id="slaCompliance">0%</h2>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <!-- Response Time Stats -->
+            <div class="col-md-4">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">Response Times</h5>
+                  <p class="mb-1">
+                    <strong>Avg Response:</strong>
+                    <span id="avgResponseTime">0</span> hours
+                  </p>
+                  <p class="mb-0">
+                    <strong>Avg Resolution:</strong>
+                    <span id="avgResolutionTime">0</span> hours
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <!-- ANALYTICS TAB -->
-            <div class="tab-pane fade" id="analytics">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">Analytics Filters</h5>
-                        <div class="row mb-3">
-                            <div class="col-md-3">
-                                <label>Start Date</label>
-                                <input type="date" id="analyticsStartDate" class="form-control">
-                            </div>
-                            <div class="col-md-3">
-                                <label>End Date</label>
-                                <input type="date" id="analyticsEndDate" class="form-control">
-                            </div>
-                            <div class="col-md-3">
-                                <label>Priority</label>
-                                <select id="analyticsPriority" class="form-control">
-                                    <option value="">All</option>
-                                    <option value="1">Critical</option>
-                                    <option value="2">High</option>
-                                    <option value="3">Medium</option>
-                                    <option value="4">Low</option>
-                                    <option value="5">Minimal</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-primary w-100" onclick="loadAnalytics()">
-                                    Load Analytics
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="analyticsResults"></div>
-                    </div>
+            <!-- Tickets by Priority -->
+            <div class="col-md-4">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">By Priority</h5>
+                  <div id="priorityStats"></div>
                 </div>
+              </div>
             </div>
 
-            <!-- API KEYS TAB -->
-            <div class="tab-pane fade" id="api-keys">
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Create New API Key</h5>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <input type="text" id="apiKeyName" class="form-control" placeholder="Key name (e.g., Order System)">
-                            </div>
-                            <div class="col-md-6">
-                                <button class="btn btn-success" onclick="createApiKey()">
-                                    <i class="fas fa-plus"></i> Generate API Key
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Top Categories -->
+            <div class="col-md-4">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">Top Categories</h5>
+                  <div id="topCategories"></div>
                 </div>
-
-                <!-- API Keys List -->
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Active API Keys</h5>
-                        <table class="table" id="apiKeysTable">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Prefix</th>
-                                    <th>Created</th>
-                                    <th>Last Used</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- New Key Display Modal -->
-                <div id="newKeyDisplay" class="alert alert-warning" style="display: none;">
-                    <h5>✅ API Key Created</h5>
-                    <p class="mb-1"><strong>Key:</strong> <code id="displayedKey"></code></p>
-                    <p class="mb-0 text-danger"><strong>⚠️ Save this key now! You won't see it again.</strong></p>
-                </div>
+              </div>
             </div>
+          </div>
 
-            <!-- CONFIGURATION TAB -->
-            <div class="tab-pane fade" id="rules">
-                <div class="row">
-                    <!-- Priorities -->
-                    <div class="col-md-6 mb-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Priority Levels</h5>
-                                <form id="prioritiesForm">
-                                    <div class="mb-2">
-                                        <label>1 - Critical</label>
-                                        <input type="text" name="p1" class="form-control" value="Critical">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>2 - High</label>
-                                        <input type="text" name="p2" class="form-control" value="High">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>3 - Medium</label>
-                                        <input type="text" name="p3" class="form-control" value="Medium">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>4 - Low</label>
-                                        <input type="text" name="p4" class="form-control" value="Low">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label>5 - Minimal</label>
-                                        <input type="text" name="p5" class="form-control" value="Minimal">
-                                    </div>
-                                    <button type="button" class="btn btn-primary" onclick="updatePriorities()">
-                                        Save Priorities
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SLA Targets -->
-                    <div class="col-md-6 mb-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">SLA Response Times (Hours)</h5>
-                                <form id="slaForm">
-                                    <div class="mb-2">
-                                        <label>Critical</label>
-                                        <input type="number" name="critical" class="form-control" value="1" min="1">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>High</label>
-                                        <input type="number" name="high" class="form-control" value="2" min="1">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>Medium</label>
-                                        <input type="number" name="medium" class="form-control" value="4" min="1">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label>Low</label>
-                                        <input type="number" name="low" class="form-control" value="24" min="1">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label>Minimal</label>
-                                        <input type="number" name="minimal" class="form-control" value="48" min="1">
-                                    </div>
-                                    <button type="button" class="btn btn-primary" onclick="updateSLA()">
-                                        Save SLA Targets
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
+          <!-- Agent Workload -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">Agent Workload</h5>
+                  <table class="table table-sm" id="agentWorkloadTable">
+                    <thead>
+                      <tr>
+                        <th>Agent Name</th>
+                        <th>Assigned Tickets</th>
+                        <th>Avg Resolution Time</th>
+                        <th>SLA Met</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
                 </div>
-
-                <!-- Categories -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Ticket Categories</h5>
-                        <div class="mb-3">
-                            <input type="text" id="categoriesInput" class="form-control" placeholder="Enter categories separated by commas">
-                        </div>
-                        <button class="btn btn-primary" onclick="updateCategories()">Save Categories</button>
-                    </div>
-                </div>
+              </div>
             </div>
+          </div>
         </div>
+
+        <!-- ANALYTICS TAB -->
+        <div class="tab-pane fade" id="analytics">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title mb-3">Analytics Filters</h5>
+              <div class="row mb-3">
+                <div class="col-md-3">
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    id="analyticsStartDate"
+                    class="form-control"
+                  />
+                </div>
+                <div class="col-md-3">
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    id="analyticsEndDate"
+                    class="form-control"
+                  />
+                </div>
+                <div class="col-md-3">
+                  <label>Priority</label>
+                  <select id="analyticsPriority" class="form-control">
+                    <option value="">All</option>
+                    <option value="1">Critical</option>
+                    <option value="2">High</option>
+                    <option value="3">Medium</option>
+                    <option value="4">Low</option>
+                    <option value="5">Minimal</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label>&nbsp;</label>
+                  <div class="d-flex gap-2">
+                    <button
+                      type="button"
+                      id="loadAnalyticsButton"
+                      class="btn btn-primary flex-fill"
+                    >
+                      Load Analytics
+                    </button>
+                    <button
+                      type="button"
+                      id="exportCsvButton"
+                      class="btn btn-outline-secondary"
+                      title="Download tickets as CSV"
+                    >
+                      <i class="fas fa-download"></i> CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div id="analyticsResults"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API KEYS TAB -->
+        <div class="tab-pane fade" id="api-keys">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Create New API Key</h5>
+              <div class="row">
+                <div class="col-md-6">
+                  <input
+                    type="text"
+                    id="apiKeyName"
+                    class="form-control"
+                    placeholder="Key name (e.g., Order System)"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <button
+                    type="button"
+                    id="createApiKeyButton"
+                    class="btn btn-success"
+                  >
+                    <i class="fas fa-plus"></i> Generate API Key
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Keys List -->
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Active API Keys</h5>
+              <table class="table" id="apiKeysTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Prefix</th>
+                    <th>Created</th>
+                    <th>Last Used</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- New Key Display Modal -->
+          <div
+            id="newKeyDisplay"
+            class="alert alert-warning"
+            style="display: none"
+          >
+            <h5>✅ API Key Created</h5>
+            <p class="mb-1">
+              <strong>Key:</strong> <code id="displayedKey"></code>
+              <button
+                type="button"
+                id="copyKeyButton"
+                class="btn btn-sm btn-outline-dark ms-2"
+              >
+                Copy
+              </button>
+            </p>
+            <p class="mb-0 text-danger">
+              <strong>⚠️ Save this key now! You won't see it again.</strong>
+            </p>
+          </div>
+        </div>
+
+        <!-- TEAM TAB -->
+        <div class="tab-pane fade" id="team">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Invite People</h5>
+              <p class="text-muted small">
+                Share codes are single use and expire after 24 hours.
+              </p>
+              <div class="row g-2 align-items-center">
+                <div class="col-md-4">
+                  <select id="inviteRole" class="form-control">
+                    <option value="agent">Agent</option>
+                    <option value="superior">Superior (admin)</option>
+                    <option value="customer">Customer</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <button
+                    type="button"
+                    id="createShareCodeButton"
+                    class="btn btn-success"
+                  >
+                    <i class="fas fa-user-plus"></i> Generate Share Code
+                  </button>
+                </div>
+              </div>
+              <div
+                id="newShareCode"
+                class="alert alert-info mt-3"
+                style="display: none"
+              ></div>
+
+              <h6 class="mt-4">Unused Share Codes</h6>
+              <table class="table table-sm" id="shareCodesTable">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Role</th>
+                    <th>Expires</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Team Members</h5>
+              <table class="table" id="teamTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONFIGURATION TAB -->
+        <div class="tab-pane fade" id="rules">
+          <div class="row">
+            <!-- Priorities -->
+            <div class="col-md-6 mb-4">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">Priority Levels</h5>
+                  <form id="prioritiesForm">
+                    <div class="mb-2">
+                      <label>1 - Critical</label>
+                      <input
+                        type="text"
+                        name="p1"
+                        class="form-control"
+                        value="Critical"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>2 - High</label>
+                      <input
+                        type="text"
+                        name="p2"
+                        class="form-control"
+                        value="High"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>3 - Medium</label>
+                      <input
+                        type="text"
+                        name="p3"
+                        class="form-control"
+                        value="Medium"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>4 - Low</label>
+                      <input
+                        type="text"
+                        name="p4"
+                        class="form-control"
+                        value="Low"
+                      />
+                    </div>
+                    <div class="mb-3">
+                      <label>5 - Minimal</label>
+                      <input
+                        type="text"
+                        name="p5"
+                        class="form-control"
+                        value="Minimal"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      id="savePrioritiesButton"
+                      class="btn btn-primary"
+                    >
+                      Save Priorities
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <!-- SLA Targets -->
+            <div class="col-md-6 mb-4">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">SLA Response Times (Hours)</h5>
+                  <form id="slaForm">
+                    <div class="mb-2">
+                      <label>Critical</label>
+                      <input
+                        type="number"
+                        name="critical"
+                        class="form-control"
+                        value="1"
+                        min="1"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>High</label>
+                      <input
+                        type="number"
+                        name="high"
+                        class="form-control"
+                        value="2"
+                        min="1"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>Medium</label>
+                      <input
+                        type="number"
+                        name="medium"
+                        class="form-control"
+                        value="4"
+                        min="1"
+                      />
+                    </div>
+                    <div class="mb-2">
+                      <label>Low</label>
+                      <input
+                        type="number"
+                        name="low"
+                        class="form-control"
+                        value="24"
+                        min="1"
+                      />
+                    </div>
+                    <div class="mb-3">
+                      <label>Minimal</label>
+                      <input
+                        type="number"
+                        name="minimal"
+                        class="form-control"
+                        value="48"
+                        min="1"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      id="saveSlaButton"
+                      class="btn btn-primary"
+                    >
+                      Save SLA Targets
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Categories -->
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Ticket Categories</h5>
+              <div class="mb-3">
+                <textarea
+                  id="categoriesInput"
+                  class="form-control"
+                  rows="6"
+                  placeholder="One category per line"
+                ></textarea>
+                <small class="text-muted"
+                  >One category per line (names may contain commas)</small
+                >
+              </div>
+              <button
+                type="button"
+                id="saveCategoriesButton"
+                class="btn btn-primary"
+              >
+                Save Categories
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="../js/admin/dashboard.js"></script>
-</body>
+    <script type="module" src="../js/admin/dashboard.js"></script>
+  </body>
 </html>

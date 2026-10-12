@@ -1,60 +1,67 @@
-// server/middleware/apiKeyAuth.js - API Key Authentication Middleware
-// TODO: Implement API key validation
+// server/middleware/apiKeyAuth.js - X-API-Key authentication
+//
+// Strict (key required):
+//   app.use('/api/v1/integrations', apiKeyAuth, routes);
+// Optional (key OR logged-in session), e.g. for ticket creation:
+//   app.use('/api/v1/tickets', apiKeyAuth.optional, requireTenant, ticketRoutes);
+//
+// On success: req.tenantId, req.apiKeyId and req.source = 'api'
 
-const crypto = require('crypto');
+const { getDB } = require("../config/db");
+const ApiKeyModel = require("../models/apiKey");
 
-/**
- * Middleware to authenticate requests using X-API-Key header
- * 
- * Usage:
- *   app.use('/api/v1/tickets', apiKeyAuth, ticketRoutes);
- * 
- * Extracts:
- *   - X-API-Key header value
- *   - Validates key exists and is not revoked
- *   - Attaches req.tenantId and req.apiKeyId
- *   - Updates lastUsedAt timestamp
- */
-function apiKeyAuth(req, res, next) {
-    try {
-        const apiKey = req.headers['x-api-key'];
+async function apiKeyAuth(req, res, next) {
+  const apiKey = req.get("X-API-Key"); // header lookup is case-insensitive
 
-        if (!apiKey) {
-            return res.status(401).json({
-                success: false,
-                error: 'X-API-Key header required'
-            });
-        }
+  if (!apiKey) {
+    return res
+      .status(401)
+      .json({ success: false, error: "X-API-Key header required" });
+  }
+  if (!ApiKeyModel.looksLikeKey(apiKey)) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Invalid or revoked API key" });
+  }
 
-        // TODO: Hash the incoming API key
-        // const keyHash = await bcrypt.hash(apiKey, 10);
-        
-        // TODO: Query apikeys collection for matching keyHash
-        // SELECT * FROM apikeys WHERE keyHash = ? AND revokedAt IS NULL
-        
-        // TODO: If key found:
-        // 1. Extract tenantId from key document
-        // 2. Update lastUsedAt timestamp (async, don't wait)
-        // 3. Attach to request: req.tenantId = key.tenantId
-        // 4. Attach to request: req.apiKeyId = key._id
-        // 5. Attach to request: req.source = 'api' (for logging)
-        // 6. Call next()
-        
-        // TODO: If key not found:
-        // Return 401 Unauthorized
+  let db;
+  try {
+    db = getDB();
+  } catch {
+    return res
+      .status(503)
+      .json({ success: false, error: "Service temporarily unavailable" });
+  }
 
-        // Mock implementation (remove when implementing)
-        req.tenantId = 'tenant_123';
-        req.apiKeyId = 'key_123';
-        req.source = 'api';
-        next();
+  try {
+    const apiKeyModel = new ApiKeyModel(db);
+    const keyData = await apiKeyModel.validate(apiKey);
 
-    } catch (error) {
-        res.status(401).json({
-            success: false,
-            error: 'API key validation failed'
-        });
+    if (!keyData) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid or revoked API key" });
     }
+
+    req.tenantId = keyData.tenantId.toString();
+    req.apiKeyId = keyData._id.toString();
+    req.source = "api";
+
+    // Usage stats are non-critical: never fail the request because of them
+    apiKeyModel.updateLastUsed(keyData._id).catch((error) => {
+      console.warn("Could not update API key lastUsedAt:", error.message);
+    });
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
+
+/** Runs apiKeyAuth only when an X-API-Key header is present. */
+apiKeyAuth.optional = function optionalApiKeyAuth(req, res, next) {
+  if (!req.get("X-API-Key")) return next();
+  return apiKeyAuth(req, res, next);
+};
 
 module.exports = apiKeyAuth;

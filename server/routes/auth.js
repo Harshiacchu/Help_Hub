@@ -1,517 +1,384 @@
-// server/routes/auth.js - Authentication Routes
-// WITH PASSWORD HASHING & 7-DAY SESSION SUPPORT
+// server/routes/auth.js - Registration, login, logout, current user
+//
+// POST /api/v1/auth/register-tenant   { name, slug, supportEmailAlias, slaTargets }
+// POST /api/v1/auth/register          { shareCode, name, email, password }
+// POST /api/v1/auth/login             { tenantSlug, email, password, rememberMe }
+// POST /api/v1/auth/logout
+// GET  /api/v1/auth/me
 
-const express = require('express');
+const express = require("express");
+const bcrypt = require("bcrypt");
+const rateLimitModule = require("express-rate-limit");
+
+const { getDB, isDuplicateKeyError } = require("../config/db");
+const { SESSION_COOKIE_NAME, COOKIE_OPTIONS } = require("../config/session");
+const { requireAuth, asyncHandler } = require("../middleware/auth");
+const TenantModel = require("../models/tenant");
+const UserModel = require("../models/user");
+const RulesModel = require("../models/rules");
+const {
+  ValidationError,
+  DEFAULT_SLA_TARGETS,
+  assertEmail,
+  assertPassword,
+  assertSlug,
+  cleanText,
+  validateSlaTargets,
+} = require("../utils/validators");
+
 const router = express.Router();
-const bcrypt = require('bcrypt');
+const rateLimit =
+  rateLimitModule.rateLimit || rateLimitModule.default || rateLimitModule;
 
-/**
- * PASSWORD HASHING:
- * - Registration: Hash password with bcrypt before saving
- * - Login: Verify password with bcrypt.compare()
- * - Session: 7 days from last activity (rolling refresh)
- */
+const SALT_ROUNDS = 10;
+// Compared against when the user doesn't exist, so "no such user" and
+// "wrong password" take the same time (no account enumeration by timing).
+const DUMMY_HASH = bcrypt.hashSync(
+  "timing-equalizer-not-a-real-password",
+  SALT_ROUNDS
+);
+const INVALID_LOGIN = "Invalid organization, email or password";
 
-// ============================================
-// TENANT REGISTRATION
-// ============================================
-
-/**
- * POST /api/v1/auth/register-tenant
- * Register a new organization/tenant
- * 
- * Request body:
- * {
- *   name: string - Organization name
- *   slug: string - URL-friendly identifier
- *   supportEmailAlias: string - Email for support tickets
- *   slaTargets: {
- *     low: number - Hours for low priority
- *     normal: number - Hours for normal priority
- *     high: number - Hours for high priority
- *     urgent: number - Hours for urgent priority
- *   }
- * }
- * 
- * Response:
- * {
- *   success: boolean
- *   data: { tenantId, slug, shareCode }
- *   error: string (if failed)
- * }
- */
-router.post('/register-tenant', async (req, res) => {
-    try {
-        const { name, slug, supportEmailAlias, slaTargets } = req.body;
-
-        // ===== VALIDATION =====
-        if (!name || !slug || !supportEmailAlias) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields'
-            });
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(supportEmailAlias)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid email format'
-            });
-        }
-
-        // TODO: Validation
-        // - Check if slug is unique
-        // - Validate SLA targets (positive integers)
-
-        // TODO: Create tenant in database
-        // const tenantData = {
-        //   name,
-        //   slug,
-        //   supportEmailAlias,
-        //   slaTargets,
-        //   createdAt: new Date(),
-        // };
-        // const result = await tenantModel.create(tenantData);
-
-        // TODO: Generate share code for inviting agents
-        // const shareCode = generateShareCode();
-
-        // TODO: Store share code in database
-
-        // Mock response (remove when database is implemented)
-        res.json({
-            success: true,
-            data: {
-                tenantId: 'tenant_' + Math.random().toString(36).substr(2, 9),
-                slug: slug,
-                shareCode: 'SHARE_' + Math.random().toString(36).substr(2, 9).toUpperCase()
-            },
-            message: 'Organization registered successfully'
-        });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Too many login attempts. Please try again in 15 minutes.",
+  },
 });
 
-// ============================================
-// USER REGISTRATION - WITH PASSWORD HASHING
-// ============================================
-
-/**
- * POST /api/v1/auth/register
- * Register a new user in a tenant using share code
- * 
- * Request body:
- * {
- *   email: string
- *   password: string - Min 8 chars, 1 uppercase, 1 number
- *   name: string
- *   shareCode: string - Code from tenant admin
- * }
- * 
- * Response:
- * {
- *   success: boolean
- *   data: { userId, email, name, role }
- *   error: string (if failed)
- * }
- */
-router.post('/register', async (req, res) => {
-    try {
-        const { email, password, name, shareCode } = req.body;
-
-        // ===== VALIDATION =====
-        if (!email || !password || !name || !shareCode) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields'
-            });
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid email format'
-            });
-        }
-
-        // Validate password strength
-        if (password.length < 8) {
-            return res.status(400).json({
-                success: false,
-                error: 'Password must be at least 8 characters'
-            });
-        }
-
-        if (!/[A-Z]/.test(password)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Password must contain at least one uppercase letter'
-            });
-        }
-
-        if (!/\d/.test(password)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Password must contain at least one number'
-            });
-        }
-
-        // TODO: Validate share code
-        // - Check if share code exists
-        // - Check if share code is not expired
-        // - Get tenantId from share code
-
-        // TODO: Validate email doesn't already exist in tenant
-
-        // ===== HASH PASSWORD WITH BCRYPT =====
-        const SALT_ROUNDS = 10;
-        const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-
-        // TODO: Create user in database with password hash
-        // const userData = {
-        //   tenantId,
-        //   email,
-        //   passwordHash,  // ← Store HASH, not password!
-        //   name,
-        //   role: 'agent',
-        //   status: 'active',
-        //   createdAt: new Date(),
-        // };
-        // const result = await userModel.create(userData);
-
-        // TODO: Revoke share code after use
-        // await tenantModel.revokeShareCode(shareCode);
-
-        // Mock response
-        res.json({
-            success: true,
-            data: {
-                userId: 'user_' + Math.random().toString(36).substr(2, 9),
-                email: email,
-                name: name,
-                role: 'agent'
-            },
-            message: 'User registered successfully. Please login.'
-        });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Too many registration attempts. Please try again later.",
+  },
 });
 
+// Promise wrappers for the callback-style session API
+const regenerateSession = (req) =>
+  new Promise((resolve, reject) =>
+    req.session.regenerate((err) => (err ? reject(err) : resolve()))
+  );
+const saveSession = (req) =>
+  new Promise((resolve, reject) =>
+    req.session.save((err) => (err ? reject(err) : resolve()))
+  );
+const destroySession = (req) =>
+  new Promise((resolve, reject) =>
+    req.session.destroy((err) => (err ? reject(err) : resolve()))
+  );
+
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE_NAME, COOKIE_OPTIONS);
+}
+
 // ============================================
-// USER LOGIN - WITH PASSWORD VERIFICATION & 7-DAY SESSION
+// POST /register-tenant
 // ============================================
 
-/**
- * POST /api/v1/auth/login
- * Authenticate user and create 7-day session
- * 
- * Session Features:
- * ✅ 7-day expiration (from last activity)
- * ✅ Rolling refresh (extends on each request)
- * ✅ Persisted in MongoDB
- * ✅ Survives server restarts
- * 
- * Request body:
- * {
- *   email: string
- *   password: string
- *   rememberMe: boolean (optional - not needed with 7 days)
- * }
- * 
- * Response:
- * {
- *   success: boolean
- *   user: { userId, email, name, role, tenantId }
- *   session: { duration, expiresIn, refreshed, storage }
- *   error: string (if failed)
- * }
- */
-router.post('/login', async (req, res) => {
+router.post(
+  "/register-tenant",
+  registrationLimiter,
+  asyncHandler(async (req, res) => {
+    const name = cleanText(req.body.name, "Company name", { min: 2, max: 100 });
+    const slug = assertSlug(req.body.slug);
+    const supportEmailAlias = assertEmail(
+      req.body.supportEmailAlias,
+      "Support email"
+    );
+    const slaTargets = req.body.slaTargets
+      ? validateSlaTargets(req.body.slaTargets)
+      : { ...DEFAULT_SLA_TARGETS };
+
+    const db = getDB();
+    const tenantModel = new TenantModel(db);
+    const rulesModel = new RulesModel(db);
+
+    let tenant;
     try {
-        const { email, password, rememberMe } = req.body;
-
-        // ===== VALIDATION =====
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password required'
-            });
-        }
-
-        // TODO: Find user by email
-        // const user = await userModel.findByEmailGlobal(email);
-
-        // ===== CHECK IF USER EXISTS =====
-        // if (!user) {
-        //   return res.status(401).json({
-        //     success: false,
-        //     error: 'Invalid email or password'  // Generic message (security!)
-        //   });
-        // }
-
-        // ===== CHECK IF USER IS ACTIVE =====
-        // if (user.status !== 'active') {
-        //   return res.status(401).json({
-        //     success: false,
-        //     error: 'Account is inactive'
-        //   });
-        // }
-
-        // ===== CHECK IF ACCOUNT IS LOCKED =====
-        // if (await userModel.isAccountLocked(user._id)) {
-        //   return res.status(401).json({
-        //     success: false,
-        //     error: 'Account is locked. Try again in 30 minutes.'
-        //   });
-        // }
-
-        // ===== VERIFY PASSWORD WITH BCRYPT =====
-        const PLAIN_PASSWORD = password;
-        // TODO: Get HASHED_PASSWORD from database
-        const HASHED_PASSWORD = 'placeholder_from_db';
-        
-        const passwordMatch = await bcrypt.compare(PLAIN_PASSWORD, HASHED_PASSWORD);
-
-        if (!passwordMatch) {
-            // TODO: Log failed attempt
-            // await userModel.recordFailedLogin(user._id);
-            
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid email or password'  // Generic message!
-            });
-        }
-
-        // ===== RESET FAILED LOGIN COUNTER =====
-        // TODO: Clear failed login attempts
-        // await userModel.clearFailedLogins(user._id);
-
-        // ===== UPDATE LAST LOGIN =====
-        // TODO: Record login timestamp
-        // await userModel.updateLastLogin(user._id);
-
-        // ============================================
-        // 🔑 CREATE 7-DAY SESSION
-        // ============================================
-        // Session stored in MongoDB expires 7 days from LAST ACTIVITY
-        // Rolling: true means cookie refreshes on each request
-        // Active users never expire; only inactive users logout
-
-        req.session.userId = 'user_' + Math.random().toString(36).substr(2, 9);        // User ID
-        req.session.email = email;                                                      // User email
-        req.session.name = 'Test User';                                                // User name
-        req.session.role = 'admin';                                                    // User role
-        req.session.tenantId = 'tenant_' + Math.random().toString(36).substr(2, 9);   // Tenant ID
-        req.session.loginTime = new Date();                                           // Login timestamp
-        req.session.lastActivity = new Date();                                        // Last activity
-        
-        // ===== SAVE SESSION =====
-        req.session.save((err) => {
-            if (err) {
-                console.error('Session save error:', err);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Session creation failed'
-                });
-            }
-
-            // ===== RETURN SUCCESS RESPONSE =====
-            res.json({
-                success: true,
-                user: {
-                    userId: req.session.userId,
-                    email: req.session.email,
-                    name: req.session.name,
-                    role: req.session.role,
-                    tenantId: req.session.tenantId
-                },
-                session: {
-                    duration: '7 days',
-                    expiresIn: '604800000ms (from last activity)',
-                    refreshed: 'on each request',
-                    storage: 'MongoDB'
-                },
-                message: 'Login successful. Session valid for 7 days.'
-            });
-        });
-
+      tenant = await tenantModel.create({
+        name,
+        slug,
+        supportEmailAlias,
+        slaTargets,
+      });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Login failed'
-        });
+      if (isDuplicateKeyError(error)) {
+        throw new ValidationError(
+          "That company slug is already taken. Please choose another.",
+          409
+        );
+      }
+      throw error;
     }
-});
 
-// ============================================
-// USER LOGOUT - DESTROY SESSION
-// ============================================
-
-/**
- * POST /api/v1/auth/logout
- * Destroy session and logout user
- */
-router.post('/logout', async (req, res) => {
+    // If setup fails half-way, remove the tenant so the slug isn't stuck
+    let shareCode;
     try {
-        // ===== DESTROY SESSION =====
-        req.session.destroy((err) => {
-            if (err) {
-                console.error('Session destroy error:', err);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Logout failed'
-                });
-            }
-
-            // ===== CLEAR COOKIE =====
-            res.clearCookie('sessionId');  // Match name from server/index.js
-
-            res.json({
-                success: true,
-                message: 'Logged out successfully'
-            });
-        });
-
+      await rulesModel.initializeDefaults(tenant._id, { slaTargets });
+      // The first code makes the person registering the organization its superior (admin)
+      shareCode = await tenantModel.createShareCode(tenant._id, "superior");
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+      await rulesModel.deleteByTenant(tenant._id).catch(() => {});
+      await tenantModel.remove(tenant._id).catch(() => {});
+      throw error;
     }
-});
+
+    res.status(201).json({
+      success: true,
+      data: {
+        tenantId: tenant._id.toString(),
+        slug: tenant.slug,
+        shareCode: shareCode.code,
+        shareCodeRole: shareCode.role,
+        shareCodeExpiresAt: shareCode.expiresAt,
+      },
+      message:
+        "Organization registered. Use the share code to create your admin account.",
+    });
+  })
+);
 
 // ============================================
-// GET CURRENT USER - CHECK SESSION
+// POST /register  (join a tenant with a share code)
 // ============================================
 
-/**
- * GET /api/v1/auth/me
- * Get current authenticated user from session
- * Returns 401 if session expired or user not logged in
- */
-router.get('/me', async (req, res) => {
+router.post(
+  "/register",
+  registrationLimiter,
+  asyncHandler(async (req, res) => {
+    if (!req.body.shareCode)
+      throw new ValidationError("Share code is required");
+    const name = cleanText(req.body.name, "Name", { min: 1, max: 100 });
+    const email = assertEmail(req.body.email);
+    assertPassword(req.body.password);
+
+    const db = getDB();
+    const tenantModel = new TenantModel(db);
+    const userModel = new UserModel(db);
+
+    // Hash before claiming the code, so a slow hash can't leave a code claimed
+    const passwordHash = await bcrypt.hash(req.body.password, SALT_ROUNDS);
+
+    const claimed = await tenantModel.claimShareCode(req.body.shareCode);
+    if (!claimed) {
+      throw new ValidationError(
+        "This share code is invalid, expired or already used"
+      );
+    }
+
+    const tenant = await tenantModel.findById(claimed.tenantId);
+    if (!tenant || tenant.status !== "active") {
+      await tenantModel.releaseShareCode(claimed.code);
+      throw new ValidationError(
+        "This share code is invalid, expired or already used"
+      );
+    }
+
+    let user;
     try {
-        // ===== CHECK IF SESSION EXISTS =====
-        if (!req.session.userId) {
-            return res.status(401).json({
-                success: false,
-                error: 'Not authenticated',
-                message: 'Session expired or not logged in'
-            });
-        }
-
-        // ===== RETURN CURRENT USER FROM SESSION =====
-        // No database query needed - data is in session!
-        res.json({
-            success: true,
-            user: {
-                userId: req.session.userId,
-                email: req.session.email,
-                name: req.session.name,
-                tenantId: req.session.tenantId,
-                role: req.session.role
-            },
-            session: {
-                loginTime: req.session.loginTime,
-                lastActivity: req.session.lastActivity,
-                expiresIn: '7 days from last activity'
-            }
-        });
-
+      user = await userModel.create({
+        tenantId: claimed.tenantId,
+        email,
+        passwordHash,
+        name,
+        role: claimed.role,
+      });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+      await tenantModel.releaseShareCode(claimed.code);
+      if (isDuplicateKeyError(error)) {
+        throw new ValidationError(
+          "An account with this email already exists in this organization",
+          409
+        );
+      }
+      throw error;
     }
-});
+
+    await tenantModel.markShareCodeUsed(claimed.code, user.userId);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        userId: user.userId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenantSlug: tenant.slug,
+        tenantName: tenant.name,
+      },
+      message: "Account created. Please log in.",
+    });
+  })
+);
 
 // ============================================
-// EXTEND SESSION MANUALLY (Optional)
+// POST /login
 // ============================================
 
-/**
- * POST /api/v1/auth/extend-session
- * Manually extend session (normally happens automatically with rolling: true)
- * Useful if user wants to ensure they stay logged in
- */
-router.post('/extend-session', (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({
-                success: false,
-                error: 'Not authenticated'
-            });
-        }
+router.post(
+  "/login",
+  loginLimiter,
+  asyncHandler(async (req, res) => {
+    const { tenantSlug, email, password, rememberMe } = req.body;
 
-        // Update last activity (rolling: true will refresh cookie)
-        req.session.lastActivity = new Date();
-
-        req.session.save((err) => {
-            if (err) {
-                return res.status(500).json({
-                    success: false,
-                    error: 'Failed to extend session'
-                });
-            }
-
-            res.json({
-                success: true,
-                message: 'Session extended for another 7 days',
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            });
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+    if (!tenantSlug || !email || !password) {
+      throw new ValidationError(
+        "Organization, email and password are required"
+      );
     }
-});
+    if (typeof password !== "string" || typeof email !== "string") {
+      throw new ValidationError(INVALID_LOGIN, 401);
+    }
+
+    const db = getDB();
+    const tenantModel = new TenantModel(db);
+    const userModel = new UserModel(db);
+
+    const tenant = await tenantModel.findBySlug(String(tenantSlug));
+    const user = tenant
+      ? await userModel.findByEmailWithPassword(tenant._id, email)
+      : null;
+
+    if (!user) {
+      await bcrypt.compare(password, DUMMY_HASH);
+      throw new ValidationError(INVALID_LOGIN, 401);
+    }
+
+    if (UserModel.isLocked(user)) {
+      const minutes = Math.max(
+        1,
+        Math.ceil((new Date(user.lockedUntil) - Date.now()) / 60000)
+      );
+      throw new ValidationError(
+        `Too many failed login attempts. Try again in ${minutes} minute(s).`,
+        429
+      );
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatch) {
+      const { locked } = await userModel.recordFailedLogin(
+        tenant._id,
+        user._id
+      );
+      if (locked) {
+        throw new ValidationError(
+          "Too many failed login attempts. Your account is locked for 30 minutes.",
+          429
+        );
+      }
+      throw new ValidationError(INVALID_LOGIN, 401);
+    }
+
+    // Only reveal account status to someone who knows the password
+    if (user.status !== "active") {
+      throw new ValidationError(
+        "This account has been deactivated. Contact your organization admin.",
+        403
+      );
+    }
+
+    await userModel.recordSuccessfulLogin(tenant._id, user._id);
+
+    // New session id on login prevents session fixation
+    await regenerateSession(req);
+
+    req.session.userId = user._id.toString();
+    req.session.tenantId = tenant._id.toString();
+    req.session.role = user.role;
+    req.session.email = user.email;
+    req.session.name = user.name;
+    req.session.tenantName = tenant.name;
+    req.session.tenantSlug = tenant.slug;
+    req.session.loginTime = new Date().toISOString();
+
+    // Unchecked "Remember me" = cookie ends when the browser closes (server still expires it after 7 idle days)
+    if (rememberMe === false) {
+      req.session.cookie.expires = false;
+    }
+
+    await saveSession(req);
+
+    res.json({
+      success: true,
+      user: {
+        userId: req.session.userId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenantId: req.session.tenantId,
+        tenantName: tenant.name,
+        tenantSlug: tenant.slug,
+      },
+      session: { expiresAt: req.session.cookie.expires || null },
+      message: "Login successful",
+    });
+  })
+);
+
+// ============================================
+// POST /logout
+// ============================================
+
+router.post(
+  "/logout",
+  asyncHandler(async (req, res) => {
+    if (req.session) {
+      await destroySession(req);
+    }
+    clearSessionCookie(res);
+    res.json({ success: true, message: "Logged out successfully" });
+  })
+);
+
+// ============================================
+// GET /me
+// ============================================
+
+router.get(
+  "/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    // Re-check the database so deactivated users are signed out immediately
+    const user = await new UserModel(getDB()).findById(
+      req.tenantId,
+      req.user.id
+    );
+    if (!user || user.status !== "active") {
+      await destroySession(req);
+      clearSessionCookie(res);
+      return res.status(401).json({
+        success: false,
+        error: "Not authenticated",
+        message: "Session expired or not logged in",
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        userId: user.userId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenantId: user.tenantId,
+        tenantName: req.session.tenantName,
+        tenantSlug: req.session.tenantSlug,
+      },
+      session: {
+        loginTime: req.session.loginTime,
+        expiresAt: req.session.cookie.expires || null,
+      },
+    });
+  })
+);
 
 module.exports = router;
-
-/**
- * 🔑 KEY FEATURES IMPLEMENTED
- * 
- * PASSWORD HASHING:
- * ✅ Registration: bcrypt.hash(password, 10) before storing
- * ✅ Login: bcrypt.compare(password, hash) for verification
- * ✅ No plain text passwords anywhere
- * ✅ Session never stores password
- * 
- * 7-DAY SESSION:
- * ✅ Expires 7 days from LAST ACTIVITY (not login)
- * ✅ Rolling refresh: extends on each request
- * ✅ MongoDB persistence: survives server restarts
- * ✅ Auto-cleanup: TTL index removes expired sessions
- * 
- * SECURITY:
- * ✅ Generic error messages (doesn't reveal email/password wrong)
- * ✅ Account locking after failed attempts
- * ✅ Failed login tracking
- * ✅ Share code revocation after use
- * ✅ Password strength validation
- * 
- * USAGE:
- * 1. Protect routes with: if (!req.session.userId) return 401
- * 2. Access user data from: req.session.userId, req.session.role
- * 3. Check role: if (req.session.role !== 'admin') return 403
- * 4. Session auto-extends: no manual refresh needed
- */

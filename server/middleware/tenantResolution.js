@@ -1,92 +1,32 @@
-// server/middleware/tenantResolution.js - Tenant Resolution Middleware
-// TODO: Implement tenant extraction logic
-
-/**
- * Middleware to extract and validate tenant from request
- * Tenant can come from:
- * 1. Session (for logged-in users)
- * 2. API key header (for API requests)
- * 3. URL parameter (for tenant-specific routes)
- * 
- * Attaches req.tenantId and req.user to the request object
- */
+// server/middleware/tenantResolution.js - Tenant context for every request
+//
+// The tenant is taken ONLY from trusted sources:
+//   1. The logged-in user's session (set at login)        -> this middleware
+//   2. A validated X-API-Key header                        -> middleware/apiKeyAuth.js
+// It is never read from the URL, query string or body, so one company can
+// never ask for another company's data by changing an id.
 
 function tenantResolution(req, res, next) {
-    try {
-        let tenantId = null;
-
-        // Priority 1: Check session (logged-in user)
-        if (req.session && req.session.tenantId) {
-            tenantId = req.session.tenantId;
-            req.userId = req.session.userId;
-            req.userRole = req.session.role;
-        }
-        // Priority 2: Check X-API-Key header (API authentication)
-        else if (req.headers['x-api-key']) {
-            // TODO: Validate API key and extract tenantId
-            // This is handled separately in middleware/apiKeyAuth.js
-            return next();
-        }
-        // Priority 3: Check URL parameters
-        else if (req.params.tenantId) {
-            tenantId = req.params.tenantId;
-            // Note: For URL-based tenant access, still need authentication
-        }
-
-        // Attach to request
-        if (tenantId) {
-            req.tenantId = tenantId;
-        }
-
-        // Continue to next middleware
-        next();
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Error resolving tenant'
-        });
-    }
+  if (req.session && req.session.tenantId) {
+    req.tenantId = req.session.tenantId;
+    req.userId = req.session.userId;
+    req.userRole = req.session.role;
+    req.source = "web";
+  }
+  next();
 }
 
 /**
- * Middleware to ensure tenant is resolved (required for protected routes)
- * Use this middleware on routes that require tenant context
+ * For routes that accept EITHER a session or an API key (e.g. creating tickets).
+ * Put apiKeyAuth before it when the request carries X-API-Key.
  */
 function requireTenant(req, res, next) {
-    if (!req.tenantId) {
-        return res.status(401).json({
-            success: false,
-            error: 'Authentication required'
-        });
-    }
-    next();
+  if (!req.tenantId) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Authentication required" });
+  }
+  next();
 }
 
-/**
- * Middleware to check if user is admin of the tenant
- * Use this middleware on admin-only routes
- */
-function requireTenantAdmin(req, res, next) {
-    if (!req.tenantId) {
-        return res.status(401).json({
-            success: false,
-            error: 'Authentication required'
-        });
-    }
-
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({
-            success: false,
-            error: 'Admin access required'
-        });
-    }
-
-    next();
-}
-
-module.exports = {
-    tenantResolution,
-    requireTenant,
-    requireTenantAdmin
-};
+module.exports = { tenantResolution, requireTenant };

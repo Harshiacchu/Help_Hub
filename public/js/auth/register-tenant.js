@@ -1,67 +1,74 @@
-// register-tenant.js - Tenant Registration
-// Handles organization registration form submission
+// public/js/auth/register-tenant.js - Organization registration
 
-document.getElementById('registerTenantForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+import { requestJson } from "../common/api.js";
+import { copyText, showAlert } from "../common/ui.js";
 
-    // Get form data
-    const formData = {
-        name: document.getElementById('companyName').value,
-        slug: document.getElementById('slug').value,
-        supportEmailAlias: document.getElementById('supportEmail').value,
-        slaTargets: {
-            low: parseInt(document.getElementById('slaLow').value),
-            normal: parseInt(document.getElementById('slaNormal').value),
-            high: parseInt(document.getElementById('slaHigh').value),
-            urgent: parseInt(document.getElementById('slaUrgent').value)
-        }
-    };
+const form = document.getElementById("registerTenantForm");
+const alertContainer = document.getElementById("alertContainer");
+const slugInput = document.getElementById("slug");
+let slugEditedByHand = false;
 
-    try {
-        // POST to backend
-        const response = await fetch('/api/v1/auth/register-tenant', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData),
-            credentials: 'include' // Send cookies
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Registration failed');
-        }
-
-        // Success - show message and redirect
-        showAlert('Organization registered successfully! Your share code is: ' + result.shareCode, 'success');
-        
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-            window.location.href = '/pages/login.html';
-        }, 2000);
-
-    } catch (error) {
-        console.error('Registration error:', error);
-        showAlert(error.message, 'danger');
-    }
+// Suggest a slug from the company name until the user types their own
+document.getElementById("companyName").addEventListener("input", (event) => {
+  if (slugEditedByHand) return;
+  slugInput.value = event.target.value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
 });
 
-// Show alert message
-function showAlert(message, type = 'info') {
-    const alertContainer = document.getElementById('alertContainer');
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    alertContainer.appendChild(alertDiv);
+slugInput.addEventListener("input", () => {
+  slugEditedByHand = slugInput.value.trim() !== "";
+  slugInput.value = slugInput.value.toLowerCase();
+});
+
+function hours(id) {
+  return parseInt(document.getElementById(id).value, 10);
 }
 
-// Format slug automatically
-document.getElementById('companyName').addEventListener('input', (e) => {
-    const slug = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    document.getElementById('slug').value = slug;
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = form.querySelector('button[type="submit"]');
+
+  const organization = {
+    name: document.getElementById("companyName").value.trim(),
+    slug: slugInput.value.trim().toLowerCase(),
+    supportEmailAlias: document.getElementById("supportEmail").value.trim(),
+    slaTargets: {
+      critical: hours("slaCritical"),
+      high: hours("slaHigh"),
+      medium: hours("slaMedium"),
+      low: hours("slaLow"),
+      minimal: hours("slaMinimal"),
+    },
+  };
+
+  button.disabled = true;
+  try {
+    const result = await requestJson("/api/v1/auth/register-tenant", {
+      method: "POST",
+      body: organization,
+    });
+
+    // Keep the share code on screen - redirecting away would lose it
+    const { shareCode, slug } = result.data;
+    document.getElementById("shareCodeValue").textContent = shareCode;
+    document.getElementById("slugValue").textContent = slug;
+    document.getElementById("continueToRegister").href =
+      `register.html?code=${encodeURIComponent(shareCode)}&org=${encodeURIComponent(slug)}`;
+    document.getElementById("registrationResult").style.display = "block";
+    alertContainer.replaceChildren();
+    form.style.display = "none";
+  } catch (error) {
+    showAlert(error.message, "danger", alertContainer);
+    button.disabled = false;
+  }
+});
+
+document.getElementById("copyShareCode").addEventListener("click", (event) => {
+  copyText(
+    document.getElementById("shareCodeValue").textContent,
+    event.currentTarget
+  );
 });

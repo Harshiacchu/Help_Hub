@@ -1,263 +1,189 @@
-// server/routes/tenants.js - Tenant Management Routes
-// TODO: Database functions to be added by Abhinay
+// server/routes/tenants.js - Tenant details, invites and team management
+// Mounted in index.js behind requireAuth, so req.user / req.tenantId always exist.
+//
+// Specific paths are registered BEFORE "/:tenantId", otherwise Express would
+// treat "share-codes" or "agents" as a tenant id.
+//
+// POST   /share-codes                       superior   create invite code { role }
+// GET    /share-codes                       superior   list unused codes
+// DELETE /share-codes/:code                 superior   cancel an unused code
+// GET    /agents                            superior   list team (agents + superiors)
+// POST   /agents/:agentId/deactivate        superior
+// POST   /agents/:agentId/reactivate        superior
+// GET    /:tenantId                         any role   (own tenant only)
+// PUT    /:tenantId                         superior   { name, supportEmailAlias }
 
-const express = require('express');
+const express = require("express");
+const { getDB } = require("../config/db");
+const { requireRole, asyncHandler } = require("../middleware/auth");
+const TenantModel = require("../models/tenant");
+const UserModel = require("../models/user");
+const {
+  ROLES,
+  STAFF_ROLES,
+  ValidationError,
+  assertRole,
+  assertEmail,
+  cleanText,
+} = require("../utils/validators");
+
 const router = express.Router();
+const superiorOnly = requireRole("superior");
 
 // ============================================
-// GET TENANT INFO
+// SHARE CODES
 // ============================================
 
-/**
- * GET /api/v1/tenants/:tenantId
- * Get tenant information
- * 
- * Response:
- * {
- *   success: boolean
- *   data: {
- *     tenantId,
- *     name,
- *     slug,
- *     supportEmailAlias,
- *     slaTargets,
- *     createdAt
- *   }
- * }
- */
-router.get('/:tenantId', async (req, res) => {
-    try {
-        const { tenantId } = req.params;
+router.post(
+  "/share-codes",
+  superiorOnly,
+  asyncHandler(async (req, res) => {
+    const role = assertRole(req.body.role || "agent", ROLES);
+    const shareCode = await new TenantModel(getDB()).createShareCode(
+      req.tenantId,
+      role,
+      req.user.id
+    );
+    res.status(201).json({ success: true, data: shareCode });
+  })
+);
 
-        // TODO: Fetch tenant from database
-        // const tenant = await tenantModel.findById(tenantId);
+router.get(
+  "/share-codes",
+  superiorOnly,
+  asyncHandler(async (req, res) => {
+    const codes = await new TenantModel(getDB()).listActiveShareCodes(
+      req.tenantId
+    );
+    res.json({ success: true, data: codes });
+  })
+);
 
-        // TODO: Check if tenant exists
-        // if (!tenant) {
-        //   return res.status(404).json({ error: 'Tenant not found' });
-        // }
+router.delete(
+  "/share-codes/:code",
+  superiorOnly,
+  asyncHandler(async (req, res) => {
+    const removed = await new TenantModel(getDB()).revokeShareCode(
+      req.tenantId,
+      req.params.code
+    );
+    if (!removed)
+      return res.status(404).json({
+        success: false,
+        error: "Share code not found or already used",
+      });
+    res.json({ success: true, message: "Share code cancelled" });
+  })
+);
 
-        // Mock response
-        res.json({
-            success: true,
-            data: {
-                tenantId: tenantId,
-                name: 'Acme Corp',
-                slug: 'acme-corp',
-                supportEmailAlias: 'support@acme.com',
-                slaTargets: {
-                    low: 48,
-                    normal: 24,
-                    high: 4,
-                    urgent: 1
-                },
-                createdAt: new Date().toISOString()
-            }
-        });
+// ============================================
+// TEAM (agents + superiors)
+// ============================================
 
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+router.get(
+  "/agents",
+  superiorOnly,
+  asyncHandler(async (req, res) => {
+    const team = await new UserModel(getDB()).findByTenantAndRole(
+      req.tenantId,
+      STAFF_ROLES
+    );
+    res.json({ success: true, data: team });
+  })
+);
+
+async function setMemberStatus(req, res, status) {
+  if (req.params.agentId === req.user.id) {
+    throw new ValidationError(
+      "You cannot change the status of your own account"
+    );
+  }
+
+  const userModel = new UserModel(getDB());
+  const target = await userModel.findById(req.tenantId, req.params.agentId);
+  if (!target || target.status === "deleted") {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const updated = await userModel.updateStatus(
+    req.tenantId,
+    target.userId,
+    status
+  );
+  if (status === "inactive") {
+    await userModel.revokeSessions(req.tenantId, target.userId); // sign them out everywhere
+  }
+  res.json({ success: true, data: updated });
+}
+
+router.post(
+  "/agents/:agentId/deactivate",
+  superiorOnly,
+  asyncHandler((req, res) => setMemberStatus(req, res, "inactive"))
+);
+router.post(
+  "/agents/:agentId/reactivate",
+  superiorOnly,
+  asyncHandler((req, res) => setMemberStatus(req, res, "active"))
+);
+
+// ============================================
+// TENANT DETAILS (parameterized - keep last)
+// ============================================
+
+function assertOwnTenant(req) {
+  if (req.params.tenantId !== req.tenantId) {
+    // 404 rather than 403, so ids of other companies aren't confirmed to exist
+    const error = new ValidationError("Organization not found", 404);
+    throw error;
+  }
+}
+
+router.get(
+  "/:tenantId",
+  asyncHandler(async (req, res) => {
+    assertOwnTenant(req);
+    const tenant = await new TenantModel(getDB()).findById(req.tenantId);
+    if (!tenant)
+      return res
+        .status(404)
+        .json({ success: false, error: "Organization not found" });
+    res.json({ success: true, data: TenantModel.toPublic(tenant) });
+  })
+);
+
+router.put(
+  "/:tenantId",
+  superiorOnly,
+  asyncHandler(async (req, res) => {
+    assertOwnTenant(req);
+
+    const updates = {};
+    if (req.body.name !== undefined)
+      updates.name = cleanText(req.body.name, "Company name", {
+        min: 2,
+        max: 100,
+      });
+    if (req.body.supportEmailAlias !== undefined)
+      updates.supportEmailAlias = assertEmail(
+        req.body.supportEmailAlias,
+        "Support email"
+      );
+    if (req.body.slaTargets !== undefined) {
+      throw new ValidationError(
+        "Update SLA targets with PUT /api/v1/rules/sla-targets"
+      );
     }
-});
-
-// ============================================
-// UPDATE TENANT INFO
-// ============================================
-
-/**
- * PUT /api/v1/tenants/:tenantId
- * Update tenant information (admin only)
- * 
- * Request body:
- * {
- *   name: string (optional),
- *   supportEmailAlias: string (optional),
- *   slaTargets: object (optional)
- * }
- */
-router.put('/:tenantId', async (req, res) => {
-    try {
-        const { tenantId } = req.params;
-        const updates = req.body;
-
-        // TODO: Check if user is admin of this tenant
-        // if (req.session.role !== 'admin') {
-        //   return res.status(403).json({ error: 'Unauthorized' });
-        // }
-
-        // TODO: Validate updates
-
-        // TODO: Update tenant in database
-        // const updatedTenant = await tenantModel.update(tenantId, updates);
-
-        res.json({
-            success: true,
-            data: {
-                tenantId: tenantId,
-                message: 'Tenant updated successfully'
-            }
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+    if (Object.keys(updates).length === 0) {
+      throw new ValidationError(
+        "Nothing to update. Send name and/or supportEmailAlias."
+      );
     }
-});
 
-// ============================================
-// GENERATE SHARE CODE FOR INVITING AGENTS
-// ============================================
-
-/**
- * POST /api/v1/tenants/:tenantId/share-codes
- * Generate a new share code to invite agents
- * 
- * Request body:
- * {
- *   role: string - 'agent' or 'admin'
- * }
- * 
- * Response:
- * {
- *   success: boolean
- *   data: {
- *     shareCode: string,
- *     expiresAt: string
- *   }
- * }
- */
-router.post('/:tenantId/share-codes', async (req, res) => {
-    try {
-        const { tenantId } = req.params;
-        const { role } = req.body;
-
-        // TODO: Check if user is admin of this tenant
-
-        // TODO: Generate share code
-        // const shareCode = generateShareCode();
-        
-        // TODO: Store share code with expiration (24 hours)
-        // const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        // await tenantModel.saveShareCode(tenantId, shareCode, role, expiresAt);
-
-        res.json({
-            success: true,
-            data: {
-                shareCode: 'SHARE_' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                role: role
-            },
-            message: 'Share code generated successfully'
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================
-// GET TENANT AGENTS
-// ============================================
-
-/**
- * GET /api/v1/tenants/:tenantId/agents
- * Get list of agents in tenant
- * 
- * Response:
- * {
- *   success: boolean
- *   data: [
- *     {
- *       userId,
- *       email,
- *       name,
- *       role,
- *       status,
- *       createdAt
- *     }
- *   ]
- * }
- */
-router.get('/:tenantId/agents', async (req, res) => {
-    try {
-        const { tenantId } = req.params;
-
-        // TODO: Check if user is admin of this tenant
-
-        // TODO: Fetch all agents from database
-        // const agents = await userModel.findByTenantAndRole(tenantId, 'agent');
-
-        // Mock response
-        res.json({
-            success: true,
-            data: [
-                {
-                    userId: 'user_123',
-                    email: 'agent1@acme.com',
-                    name: 'Agent One',
-                    role: 'agent',
-                    status: 'active',
-                    createdAt: new Date().toISOString()
-                },
-                {
-                    userId: 'user_456',
-                    email: 'agent2@acme.com',
-                    name: 'Agent Two',
-                    role: 'agent',
-                    status: 'active',
-                    createdAt: new Date().toISOString()
-                }
-            ]
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================
-// DEACTIVATE AGENT
-// ============================================
-
-/**
- * POST /api/v1/tenants/:tenantId/agents/:agentId/deactivate
- * Deactivate an agent (admin only)
- */
-router.post('/:tenantId/agents/:agentId/deactivate', async (req, res) => {
-    try {
-        const { tenantId, agentId } = req.params;
-
-        // TODO: Check if user is admin of this tenant
-
-        // TODO: Update agent status in database
-        // await userModel.updateStatus(agentId, 'inactive');
-
-        res.json({
-            success: true,
-            data: {
-                agentId: agentId,
-                status: 'inactive',
-                message: 'Agent deactivated successfully'
-            }
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
+    const tenant = await new TenantModel(getDB()).update(req.tenantId, updates);
+    if (updates.name) req.session.tenantName = tenant.name; // keep the navbar in sync
+    res.json({ success: true, data: TenantModel.toPublic(tenant) });
+  })
+);
 
 module.exports = router;

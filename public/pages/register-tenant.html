@@ -1,88 +1,206 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Register Organization - HelpHub</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="../css/auth.css">
-</head>
-<body class="bg-light">
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="../css/auth.css" />
+  </head>
+  <body class="bg-light">
     <div class="container">
-        <div class="row justify-content-center align-items-center min-vh-100">
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-body p-5">
-                        <h1 class="card-title text-center mb-4">Register Your Organization</h1>
-                        
-                        <form id="registerTenantForm">
-                            <!-- Company Name -->
-                            <div class="mb-3">
-                                <label for="companyName" class="form-label">Company Name</label>
-                                <input type="text" class="form-control" id="companyName" name="companyName" placeholder="e.g., Acme Corp" required>
-                            </div>
+      <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-6">
+          <div class="card shadow">
+            <div class="card-body p-5">
+              <h1 class="card-title text-center mb-4">
+                Register Your Organization
+              </h1>
 
-                            <!-- Company Slug -->
-                            <div class="mb-3">
-                                <label for="slug" class="form-label">Company Slug</label>
-                                <input type="text" class="form-control" id="slug" name="slug" placeholder="e.g., acme-corp" required>
-                                <small class="text-muted">Lowercase, no spaces</small>
-                            </div>
-
-                            <!-- Support Email -->
-                            <div class="mb-3">
-                                <label for="supportEmail" class="form-label">Support Email Address</label>
-                                <input type="email" class="form-control" id="supportEmail" name="supportEmail" placeholder="support@company.com" required>
-                            </div>
-
-                            <!-- SLA Targets -->
-                            <hr class="my-4">
-                            <h5 class="mb-3">Set SLA Response Targets (hours)</h5>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="slaLow" class="form-label">Low Priority</label>
-                                        <input type="number" class="form-control" id="slaLow" name="slaLow" value="48" min="1" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="slaNormal" class="form-label">Normal Priority</label>
-                                        <input type="number" class="form-control" id="slaNormal" name="slaNormal" value="24" min="1" required>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="slaHigh" class="form-label">High Priority</label>
-                                        <input type="number" class="form-control" id="slaHigh" name="slaHigh" value="4" min="1" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="slaUrgent" class="form-label">Urgent Priority</label>
-                                        <input type="number" class="form-control" id="slaUrgent" name="slaUrgent" value="1" min="1" required>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary w-100 py-2 mt-4">Register Organization</button>
-                        </form>
-
-                        <div class="text-center mt-3">
-                            <p class="text-muted">Already registered? <a href="login.html">Log in</a></p>
-                        </div>
-
-                        <div id="alertContainer"></div>
-                    </div>
+              <form id="registerTenantForm">
+                <!-- Company Name -->
+                <div class="mb-3">
+                  <label for="companyName" class="form-label"
+                    >Company Name</label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="companyName"
+                    name="companyName"
+                    placeholder="e.g., Acme Corp"
+                    maxlength="100"
+                    required
+                  />
                 </div>
+
+                <!-- Company Slug -->
+                <div class="mb-3">
+                  <label for="slug" class="form-label">Company Slug</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="slug"
+                    name="slug"
+                    placeholder="e.g., acme-corp"
+                    pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                    minlength="3"
+                    maxlength="50"
+                    required
+                  />
+                  <small class="text-muted"
+                    >Lowercase letters, numbers and hyphens. Your team uses this
+                    to log in.</small
+                  >
+                </div>
+
+                <!-- Support Email -->
+                <div class="mb-3">
+                  <label for="supportEmail" class="form-label"
+                    >Support Email Address</label
+                  >
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="supportEmail"
+                    name="supportEmail"
+                    placeholder="support@company.com"
+                    required
+                  />
+                </div>
+
+                <!-- SLA Targets -->
+                <hr class="my-4" />
+                <h5 class="mb-1">SLA Response Targets (hours)</h5>
+                <p class="text-muted small mb-3">
+                  Between 1 and 168 hours. You can change these later.
+                </p>
+
+                <div class="row">
+                  <div class="col-md-4 mb-3">
+                    <label for="slaCritical" class="form-label"
+                      >1 - Critical</label
+                    >
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="slaCritical"
+                      value="2"
+                      min="1"
+                      max="168"
+                      step="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="slaHigh" class="form-label">2 - High</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="slaHigh"
+                      value="4"
+                      min="1"
+                      max="168"
+                      step="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="slaMedium" class="form-label">3 - Medium</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="slaMedium"
+                      value="8"
+                      min="1"
+                      max="168"
+                      step="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="slaLow" class="form-label">4 - Low</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="slaLow"
+                      value="24"
+                      min="1"
+                      max="168"
+                      step="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="slaMinimal" class="form-label"
+                      >5 - Minimal</label
+                    >
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="slaMinimal"
+                      value="48"
+                      min="1"
+                      max="168"
+                      step="1"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 mt-3">
+                  Register Organization
+                </button>
+              </form>
+
+              <!-- Shown after successful registration -->
+              <div
+                id="registrationResult"
+                class="alert alert-success mt-4"
+                style="display: none"
+              >
+                <h5 class="alert-heading">Organization registered</h5>
+                <p class="mb-2">
+                  Your admin share code (valid for 24 hours, single use):
+                </p>
+                <p class="mb-2">
+                  <code id="shareCodeValue" class="fs-5"></code>
+                  <button
+                    type="button"
+                    id="copyShareCode"
+                    class="btn btn-sm btn-outline-success ms-2"
+                  >
+                    Copy
+                  </button>
+                </p>
+                <p class="small mb-3">
+                  Use it now to create your admin account. Your team logs in
+                  with organization <strong id="slugValue"></strong>.
+                </p>
+                <a
+                  id="continueToRegister"
+                  class="btn btn-success w-100"
+                  href="register.html"
+                  >Create my admin account</a
+                >
+              </div>
+
+              <div class="text-center mt-3">
+                <p class="text-muted">
+                  Already registered? <a href="login.html">Log in</a>
+                </p>
+              </div>
+
+              <div id="alertContainer"></div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
 
-    <script src="../js/auth/register-tenant.js"></script>
-</body>
+    <script type="module" src="../js/auth/register-tenant.js"></script>
+  </body>
 </html>

@@ -1,96 +1,185 @@
-// server/models/tenant.js - Tenant Model
-// TODO: Implement all database functions
+// server/models/tenant.js - Tenants (organizations) and invite share codes
+
+const crypto = require("crypto");
+const { mustObjectId, toObjectId } = require("../config/db");
+const {
+  ROLES,
+  DEFAULT_SLA_TARGETS,
+  ValidationError,
+} = require("../utils/validators");
+
+const SHARE_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 class TenantModel {
-    // Initialize with MongoDB connection
-    constructor(db) {
-        this.collection = db.collection('tenants');
-        this.shareCodesCollection = db.collection('shareCodes');
+  constructor(db) {
+    this.collection = db.collection("tenants");
+    this.shareCodes = db.collection("shareCodes");
+  }
+
+  static toPublic(tenant) {
+    if (!tenant) return null;
+    return {
+      tenantId: tenant._id.toString(),
+      name: tenant.name,
+      slug: tenant.slug,
+      supportEmailAlias: tenant.supportEmailAlias,
+      slaTargets: tenant.slaTargets,
+      status: tenant.status,
+      createdAt: tenant.createdAt,
+      updatedAt: tenant.updatedAt,
+    };
+  }
+
+  static generateShareCode() {
+    // 64 bits of cryptographic randomness, e.g. SHARE_9F3A1C77B2E04D5A
+    return "SHARE_" + crypto.randomBytes(8).toString("hex").toUpperCase();
+  }
+
+  static normalizeCode(code) {
+    return typeof code === "string" ? code.trim().toUpperCase() : "";
+  }
+
+  /** Throws the driver's duplicate-key error (code 11000) if the slug is taken. */
+  async create({ name, slug, supportEmailAlias, slaTargets }) {
+    const now = new Date();
+    const tenant = {
+      name,
+      slug,
+      supportEmailAlias,
+      slaTargets: slaTargets || { ...DEFAULT_SLA_TARGETS },
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await this.collection.insertOne(tenant);
+    return { ...tenant, _id: result.insertedId };
+  }
+
+  async findById(tenantId) {
+    const _id = toObjectId(tenantId);
+    if (!_id) return null;
+    return this.collection.findOne({ _id, status: { $ne: "deleted" } });
+  }
+
+  async findBySlug(slug) {
+    if (typeof slug !== "string" || !slug.trim()) return null;
+    return this.collection.findOne({
+      slug: slug.trim().toLowerCase(),
+      status: "active",
+    });
+  }
+
+  /** Only name and supportEmailAlias can change here. SLA changes go through RulesModel. */
+  async update(tenantId, { name, supportEmailAlias }) {
+    const set = {};
+    if (name !== undefined) set.name = name;
+    if (supportEmailAlias !== undefined)
+      set.supportEmailAlias = supportEmailAlias;
+    if (Object.keys(set).length === 0) return this.findById(tenantId);
+
+    set.updatedAt = new Date();
+    await this.collection.updateOne(
+      { _id: mustObjectId(tenantId, "tenant id") },
+      { $set: set }
+    );
+    return this.findById(tenantId);
+  }
+
+  /** Hard delete - only used to roll back a half-finished tenant registration. */
+  async remove(tenantId) {
+    await this.collection.deleteOne({
+      _id: mustObjectId(tenantId, "tenant id"),
+    });
+  }
+
+  // ============================================
+  // SHARE CODES (invites)
+  // ============================================
+
+  async createShareCode(tenantId, role = "agent", createdBy = null) {
+    if (!ROLES.includes(role)) {
+      throw new ValidationError(`Role must be one of: ${ROLES.join(", ")}`);
     }
 
-    /**
-     * Create a new tenant
-     * @param {Object} tenantData - { name, slug, supportEmailAlias, slaTargets }
-     * @returns {Promise<Object>} Created tenant with _id
-     */
-    async create(tenantData) {
-        // TODO: Implement
-        // 1. Validate slug is unique
-        // 2. Insert into tenants collection
-        // 3. Return created tenant
-    }
+    const now = new Date();
+    const shareCode = {
+      tenantId: mustObjectId(tenantId, "tenant id"),
+      code: TenantModel.generateShareCode(),
+      role,
+      createdBy: createdBy ? toObjectId(createdBy) : null,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + SHARE_CODE_TTL_MS),
+      usedAt: null,
+      usedBy: null,
+    };
 
-    /**
-     * Find tenant by ID
-     * @param {string} tenantId
-     * @returns {Promise<Object>} Tenant data
-     */
-    async findById(tenantId) {
-        // TODO: Implement
-    }
+    await this.shareCodes.insertOne(shareCode);
+    return {
+      code: shareCode.code,
+      role: shareCode.role,
+      expiresAt: shareCode.expiresAt,
+    };
+  }
 
-    /**
-     * Find tenant by slug
-     * @param {string} slug
-     * @returns {Promise<Object>} Tenant data
-     */
-    async findBySlug(slug) {
-        // TODO: Implement
-    }
+  /**
+   * Atomically claims an unused, unexpired code. Two people submitting the
+   * same code at the same moment can't both get in.
+   * @returns {Promise<Object|null>} the claimed code document (with tenantId and role), or null
+   */
+  async claimShareCode(code) {
+    const normalized = TenantModel.normalizeCode(code);
+    if (!normalized) return null;
+    const now = new Date();
 
-    /**
-     * Update tenant information
-     * @param {string} tenantId
-     * @param {Object} updates
-     * @returns {Promise<Object>} Updated tenant
-     */
-    async update(tenantId, updates) {
-        // TODO: Implement
-    }
+    return this.shareCodes.findOneAndUpdate(
+      { code: normalized, usedAt: null, expiresAt: { $gt: now } },
+      { $set: { usedAt: now } },
+      { returnDocument: "after", includeResultMetadata: false }
+    );
+  }
 
-    /**
-     * Update SLA targets for tenant
-     * @param {string} tenantId
-     * @param {Object} slaTargets - { low, normal, high, urgent }
-     * @returns {Promise<Object>} Updated tenant
-     */
-    async updateSLA(tenantId, slaTargets) {
-        // TODO: Implement
-    }
+  /** Gives a claimed code back if creating the user failed (e.g. duplicate email). */
+  async releaseShareCode(code) {
+    await this.shareCodes.updateOne(
+      { code: TenantModel.normalizeCode(code), usedBy: null },
+      { $set: { usedAt: null } }
+    );
+  }
 
-    /**
-     * Generate and store a share code for inviting agents
-     * @param {string} tenantId
-     * @param {string} role - 'agent' or 'admin'
-     * @returns {Promise<string>} Share code
-     */
-    async generateShareCode(tenantId, role = 'agent') {
-        // TODO: Implement
-        // 1. Generate random code
-        // 2. Set expiration to 24 hours from now
-        // 3. Store in shareCodes collection
-        // 4. Return code
-    }
+  /** Records who used the code once their account exists. */
+  async markShareCodeUsed(code, userId) {
+    await this.shareCodes.updateOne(
+      { code: TenantModel.normalizeCode(code) },
+      { $set: { usedBy: mustObjectId(userId, "user id") } }
+    );
+  }
 
-    /**
-     * Validate share code
-     * @param {string} shareCode
-     * @returns {Promise<Object>} { tenantId, role, isValid }
-     */
-    async validateShareCode(shareCode) {
-        // TODO: Implement
-        // 1. Find share code in database
-        // 2. Check if expired
-        // 3. Return validation result
-    }
+  /** Unused, unexpired codes for this tenant. */
+  async listActiveShareCodes(tenantId) {
+    const codes = await this.shareCodes
+      .find({
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        usedAt: null,
+        expiresAt: { $gt: new Date() },
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return codes.map((c) => ({
+      code: c.code,
+      role: c.role,
+      createdAt: c.createdAt,
+      expiresAt: c.expiresAt,
+    }));
+  }
 
-    /**
-     * Revoke a share code after use
-     * @param {string} shareCode
-     */
-    async revokeShareCode(shareCode) {
-        // TODO: Implement
-    }
+  async revokeShareCode(tenantId, code) {
+    const result = await this.shareCodes.deleteOne({
+      tenantId: mustObjectId(tenantId, "tenant id"),
+      code: TenantModel.normalizeCode(code),
+      usedAt: null,
+    });
+    return result.deletedCount > 0;
+  }
 }
 
 module.exports = TenantModel;
