@@ -6,11 +6,18 @@
 // It is never read from the URL, query string or body, so one company can
 // never ask for another company's data by changing an id.
 
+/** The one place the session is read. Sets req.user, req.tenantId and req.source. */
 function tenantResolution(req, res, next) {
-  if (req.session && req.session.tenantId) {
-    req.tenantId = req.session.tenantId;
-    req.userId = req.session.userId;
-    req.userRole = req.session.role;
+  const s = req.session;
+  if (s && s.userId && s.tenantId) {
+    req.user = {
+      id: s.userId,
+      tenantId: s.tenantId,
+      role: s.role,
+      email: s.email,
+      name: s.name,
+    };
+    req.tenantId = s.tenantId;
     req.source = "web";
   }
   next();

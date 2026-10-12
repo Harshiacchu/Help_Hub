@@ -17,7 +17,6 @@ const LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 class UserModel {
   constructor(db) {
     this.collection = db.collection("users");
-    this.sessions = db.collection("sessions");
   }
 
   /** Public shape - never includes passwordHash or lockout internals. */
@@ -85,13 +84,12 @@ class UserModel {
     return UserModel.toPublic(user);
   }
 
-  /** @param {string|string[]} roles */
-  async findByTenantAndRole(tenantId, roles, { includeInactive = true } = {}) {
-    const roleList = Array.isArray(roles) ? roles : [roles];
+  /** Everyone with one of these roles, except deleted users. */
+  async findByTenantAndRole(tenantId, roles) {
     const query = {
       tenantId: mustObjectId(tenantId, "tenant id"),
-      role: { $in: roleList },
-      status: includeInactive ? { $ne: "deleted" } : "active",
+      role: { $in: roles },
+      status: { $ne: "deleted" },
     };
     const users = await this.collection
       .find(query)
@@ -159,15 +157,6 @@ class UserModel {
       return { attempts, locked: true };
     }
     return { attempts, locked: false };
-  }
-
-  /** Logs a user out everywhere (used when an admin deactivates them). */
-  async revokeSessions(tenantId, userId) {
-    const result = await this.sessions.deleteMany({
-      "session.userId": String(userId),
-      "session.tenantId": String(tenantId),
-    });
-    return result.deletedCount;
   }
 }
 

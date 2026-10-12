@@ -2,7 +2,7 @@
 //
 // POST /api/v1/auth/register-tenant   { name, slug, supportEmailAlias, slaTargets }
 // POST /api/v1/auth/register          { shareCode, name, email, password }
-// POST /api/v1/auth/login             { tenantSlug, email, password, rememberMe }
+// POST /api/v1/auth/login             { tenantSlug, email, password }
 // POST /api/v1/auth/logout
 // GET  /api/v1/auth/me
 
@@ -225,7 +225,7 @@ router.post(
   "/login",
   loginLimiter,
   asyncHandler(async (req, res) => {
-    const { tenantSlug, email, password, rememberMe } = req.body;
+    const { tenantSlug, email, password } = req.body;
 
     if (!tenantSlug || !email || !password) {
       throw new ValidationError(
@@ -298,11 +298,6 @@ router.post(
     req.session.tenantSlug = tenant.slug;
     req.session.loginTime = new Date().toISOString();
 
-    // Unchecked "Remember me" = cookie ends when the browser closes (server still expires it after 7 idle days)
-    if (rememberMe === false) {
-      req.session.cookie.expires = false;
-    }
-
     await saveSession(req);
 
     res.json({
@@ -316,7 +311,6 @@ router.post(
         tenantName: tenant.name,
         tenantSlug: tenant.slug,
       },
-      session: { expiresAt: req.session.cookie.expires || null },
       message: "Login successful",
     });
   })
@@ -345,7 +339,7 @@ router.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    // Re-check the database so deactivated users are signed out immediately
+    // Re-check the database so deactivated users are signed out on their next page load
     const user = await new UserModel(getDB()).findById(
       req.tenantId,
       req.user.id
@@ -371,10 +365,7 @@ router.get(
         tenantName: req.session.tenantName,
         tenantSlug: req.session.tenantSlug,
       },
-      session: {
-        loginTime: req.session.loginTime,
-        expiresAt: req.session.cookie.expires || null,
-      },
+      session: { loginTime: req.session.loginTime },
     });
   })
 );

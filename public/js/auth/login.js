@@ -13,8 +13,20 @@ const LAST_ORG_KEY = "helphub.lastOrg";
 const form = document.getElementById("loginForm");
 const alertContainer = document.getElementById("alertContainer");
 
-function goHome(role) {
-  window.location.href = ROLE_HOME[role] || "/pages/login.html";
+/** True if the page exists on the server (Emily's pages may not be built yet). */
+async function pageExists(url) {
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Only redirects when the page exists, so nobody gets stuck on a missing page. */
+async function goHome(role) {
+  const page = ROLE_HOME[role];
+  if (page && (await pageExists(page))) window.location.href = page;
 }
 
 function readSavedOrganization() {
@@ -58,7 +70,6 @@ form.addEventListener("submit", async (event) => {
       .toLowerCase(),
     email: document.getElementById("email").value.trim(),
     password: document.getElementById("password").value,
-    rememberMe: document.getElementById("rememberMe").checked,
   };
 
   button.disabled = true;
@@ -68,8 +79,20 @@ form.addEventListener("submit", async (event) => {
       body: credentials,
     });
     saveOrganization(result.user.tenantSlug);
-    showAlert("Login successful! Redirecting...", "success", alertContainer);
-    setTimeout(() => goHome(result.user.role), 600);
+    const home = ROLE_HOME[result.user.role];
+    if (home && (await pageExists(home))) {
+      showAlert("Login successful! Redirecting...", "success", alertContainer);
+      setTimeout(() => {
+        window.location.href = home;
+      }, 600);
+    } else {
+      showAlert(
+        `Signed in as ${result.user.name}, but the ${result.user.role} pages are not available yet.`,
+        "warning",
+        alertContainer
+      );
+      button.disabled = false;
+    }
   } catch (error) {
     showAlert(error.message, "danger", alertContainer);
     button.disabled = false;

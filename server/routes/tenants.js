@@ -110,9 +110,6 @@ async function setMemberStatus(req, res, status) {
     target.userId,
     status
   );
-  if (status === "inactive") {
-    await userModel.revokeSessions(req.tenantId, target.userId); // sign them out everywhere
-  }
   res.json({ success: true, data: updated });
 }
 
@@ -134,8 +131,7 @@ router.post(
 function assertOwnTenant(req) {
   if (req.params.tenantId !== req.tenantId) {
     // 404 rather than 403, so ids of other companies aren't confirmed to exist
-    const error = new ValidationError("Organization not found", 404);
-    throw error;
+    throw new ValidationError("Organization not found", 404);
   }
 }
 

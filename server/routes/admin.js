@@ -1,17 +1,15 @@
-// server/routes/admin.js - Dashboard, analytics, CSV export, SLA targets
+// server/routes/admin.js - Dashboard, analytics and CSV export
 // Mounted in index.js behind requireAuth + requireRole('superior').
+// (SLA targets live with the other company rules: /api/v1/rules/sla-targets)
 //
 // GET /dashboard
 // GET /analytics?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&priority=1-5&category=Billing
 // GET /analytics/export   (same filters, downloads CSV)
-// GET /sla
-// PUT /sla                { critical, high, medium, low, minimal }  (hours, 1-168)
 
 import express from "express";
 import { getDB } from "../config/db.js";
 import { asyncHandler } from "../middleware/auth.js";
 import AnalyticsController from "../controllers/analyticsController.js";
-import RulesModel from "../models/rules.js";
 
 const router = express.Router();
 
@@ -34,7 +32,6 @@ router.get(
   })
 );
 
-// Registered before "/analytics" for readability; paths are distinct either way
 router.get(
   "/analytics/export",
   asyncHandler(async (req, res) => {
@@ -61,26 +58,6 @@ router.get(
       analyticsFilters(req.query)
     );
     res.json({ success: true, data });
-  })
-);
-
-router.get(
-  "/sla",
-  asyncHandler(async (req, res) => {
-    const data = await new RulesModel(getDB()).getSlaTargets(req.tenantId);
-    res.json({ success: true, data });
-  })
-);
-
-router.put(
-  "/sla",
-  asyncHandler(async (req, res) => {
-    const data = await new RulesModel(getDB()).setSlaTargets(
-      req.tenantId,
-      req.body,
-      req.user.id
-    );
-    res.json({ success: true, data, message: "SLA targets updated" });
   })
 );
 

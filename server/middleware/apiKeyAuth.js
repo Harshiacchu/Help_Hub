@@ -5,7 +5,8 @@
 // Optional (key OR logged-in session), e.g. for ticket creation:
 //   app.use('/api/v1/tickets', apiKeyAuth.optional, requireTenant, ticketRoutes);
 //
-// On success: req.tenantId, req.apiKeyId and req.source = 'api'
+// On success: req.tenantId, req.apiKeyId and req.source = 'api'.
+// req.user is null: the request is made by a system, not a logged-in person.
 
 import { getDB } from "../config/db.js";
 import ApiKeyModel from "../models/apiKey.js";
@@ -46,6 +47,7 @@ async function apiKeyAuth(req, res, next) {
     req.tenantId = keyData.tenantId.toString();
     req.apiKeyId = keyData._id.toString();
     req.source = "api";
+    req.user = null; // never mix a browser session's user with another company's key
 
     // Usage stats are non-critical: never fail the request because of them
     apiKeyModel.updateLastUsed(keyData._id).catch((error) => {

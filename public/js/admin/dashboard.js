@@ -164,6 +164,12 @@ async function loadAnalytics() {
 }
 
 function exportAnalytics() {
+  const start = $("analyticsStartDate").value;
+  const end = $("analyticsEndDate").value;
+  if (start && end && start > end) {
+    showAlert("The start date must be on or before the end date", "warning");
+    return;
+  }
   // A plain navigation sends the session cookie and lets the browser download the CSV
   window.location.href = `/api/v1/admin/analytics/export?${analyticsQuery()}`;
 }
@@ -371,7 +377,7 @@ async function loadTeam() {
 async function setMemberStatus(userId, action) {
   if (
     action === "deactivate" &&
-    !confirm("Deactivate this user? They will be signed out immediately.")
+    !confirm("Deactivate this user? They will no longer be able to sign in.")
   ) {
     return;
   }

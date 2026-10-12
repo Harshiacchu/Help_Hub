@@ -13,6 +13,7 @@ import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
 import RulesModel from "../models/rules.js";
 import ApiKeyModel from "../models/apiKey.js";
+import { savePromptFiles } from "../services/prompts.js";
 
 const DEMO_PASSWORD = "Password123";
 
@@ -110,9 +111,6 @@ async function removeDemoCompany(db, slug) {
       db.collection(name).deleteMany(byTenant)
     )
   );
-  await db
-    .collection("sessions")
-    .deleteMany({ "session.tenantId": tenant._id.toString() });
   await db.collection("tenants").deleteOne({ _id: tenant._id });
 }
 
@@ -178,6 +176,9 @@ async function seed() {
     });
   }
 
+  // Store each demo company's prompt file (server/prompts/<slug>.md) in its record
+  const prompts = await savePromptFiles(db);
+
   const counts = {};
   for (const name of ["tenants", "users", "rules", "apikeys", "shareCodes"]) {
     counts[name] = await db.collection(name).countDocuments();
@@ -186,6 +187,14 @@ async function seed() {
 
   console.log("\nSeed complete. Records per collection:", counts);
   console.log(`Total records in these collections: ${total}\n`);
+  console.log(
+    `AI prompts stored for: ${
+      prompts
+        .filter((p) => p.saved)
+        .map((p) => p.slug)
+        .join(", ") || "none"
+    }`
+  );
   console.log(`Demo logins (password for every demo user: ${DEMO_PASSWORD})`);
   for (const { company, users, apiKey } of results) {
     console.log(

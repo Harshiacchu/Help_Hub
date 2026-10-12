@@ -85,6 +85,15 @@ class TenantModel {
     return this.findById(tenantId);
   }
 
+  /** Stores the company's AI triage prompt in its record. Returns false if no such company. */
+  async setTriagePrompt(slug, prompt) {
+    const result = await this.collection.updateOne(
+      { slug, status: "active" },
+      { $set: { triagePrompt: prompt, updatedAt: new Date() } }
+    );
+    return result.matchedCount > 0;
+  }
+
   /** Hard delete - only used to roll back a half-finished tenant registration. */
   async remove(tenantId) {
     await this.collection.deleteOne({

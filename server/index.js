@@ -1,8 +1,6 @@
 // server/index.js - Express server entry point
 //
 // Order matters: database -> session -> tenant context -> routes -> 404 -> errors.
-// (Previously the session middleware was added after the routes, so req.session
-// was undefined inside every route.)
 
 // Must be the first import: loads .env before any other module reads process.env
 import "dotenv/config";
@@ -10,7 +8,7 @@ import "dotenv/config";
 import { fileURLToPath } from "node:url";
 import express from "express";
 
-import { connectDB, getDB, getClient, closeDB, DB_NAME } from "./config/db.js";
+import { connectDB, closeDB } from "./config/db.js";
 import { createSessionMiddleware } from "./config/session.js";
 import { tenantResolution } from "./middleware/tenantResolution.js";
 import { requireAuth, requireRole } from "./middleware/auth.js";
@@ -26,7 +24,7 @@ const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === "production";
 
-function createApp(mongoClient) {
+function createApp() {
   const app = express();
 
   if (isProduction) app.set("trust proxy", 1); // secure cookies behind a hosting proxy
@@ -38,7 +36,7 @@ function createApp(mongoClient) {
   // Static files don't need a session
   app.use(express.static(PUBLIC_DIR));
 
-  app.use(createSessionMiddleware(mongoClient, DB_NAME));
+  app.use(createSessionMiddleware());
   app.use(tenantResolution);
 
   // ===== Abhinay's routes =====
@@ -95,12 +93,7 @@ async function start() {
   try {
     await connectDB();
 
-    // Sessions saved by older code as JSON strings can't be read by the current store settings
-    await getDB()
-      .collection("sessions")
-      .deleteMany({ session: { $type: "string" } });
-
-    const app = createApp(getClient());
+    const app = createApp();
     const server = app.listen(PORT, () => {
       console.log(
         `HelpHub running on http://localhost:${PORT} (${process.env.NODE_ENV || "development"})`

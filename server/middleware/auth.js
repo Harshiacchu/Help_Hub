@@ -8,24 +8,15 @@
 //   req.user     = { id, tenantId, role, email, name }
 //   req.tenantId = the logged-in user's tenant (from the session, never from the request)
 
+/** req.user is filled in by tenantResolution, which index.js runs on every request. */
 function requireAuth(req, res, next) {
-  const s = req.session;
-  if (!s || !s.userId || !s.tenantId) {
+  if (!req.user) {
     return res.status(401).json({
       success: false,
       error: "Not authenticated",
       message: "Session expired or not logged in",
     });
   }
-
-  req.user = {
-    id: s.userId,
-    tenantId: s.tenantId,
-    role: s.role,
-    email: s.email,
-    name: s.name,
-  };
-  req.tenantId = s.tenantId;
   next();
 }
 

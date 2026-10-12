@@ -63,7 +63,7 @@ async function ensureIndex(
 }
 
 // Indexes for Abhinay's collections only. Emily adds tickets/comments/auditLog
-// indexes alongside her models. The sessions TTL index is created by connect-mongo.
+// indexes alongside her models.
 async function createIndexes() {
   // Integrity (must succeed)
   await ensureIndex(
@@ -116,12 +116,6 @@ function getDB() {
   return db;
 }
 
-function getClient() {
-  if (!client)
-    throw new Error("MongoDB client not initialized. Call connectDB() first.");
-  return client;
-}
-
 async function closeDB() {
   if (client) {
     await client.close();
@@ -160,13 +154,10 @@ function isDuplicateKeyError(error) {
 }
 
 export {
-  DB_NAME,
   connectDB,
   getDB,
-  getClient,
   closeDB,
   toObjectId,
   mustObjectId,
   isDuplicateKeyError,
-  ObjectId,
 };
