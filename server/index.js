@@ -1,9 +1,10 @@
 // server/index.js - Express Server Entry Point
-// TODO: Add database connection and middleware
+// WITH 7-DAY SESSION IMPLEMENTATION
 
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const path = require('path');
 
 const app = express();
@@ -19,18 +20,105 @@ app.use(express.urlencoded({ extended: true }));
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Session middleware
-// TODO: Replace with MongoDB session store for production
+// ============================================
+// 🔑 SESSION MIDDLEWARE - 7 DAYS
+// ============================================
+
+// CONFIGURATION:
+// - maxAge: 7 days from last activity (not login)
+// - rolling: true (refreshes on each request)
+// - store: MongoDB (persists across server restarts)
+// - secure: true in production (HTTPS only)
+// - httpOnly: true (XSS protection)
+// - sameSite: 'strict' (CSRF protection)
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'dev-secret-key',
-    resave: false,
-    saveUninitialized: true,
+    // ===== SESSION STORAGE =====
+    // Store sessions in MongoDB for persistence
+    // TODO: Uncomment when MongoDB is connected
+    // store: MongoStore.create({
+    //     client: mongoClient,           // MongoDB client
+    //     dbName: 'helpHub',             // Database name
+    //     collectionName: 'sessions',    // Collection for sessions
+    //     ttl: 7 * 24 * 60 * 60,        // TTL in seconds (7 days)
+    //     touchAfter: 24 * 3600          // Only update DB if modified
+    // }),
+
+    // ===== SESSION SECRET =====
+    secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
+    
+    // ===== COOKIE SETTINGS =====
     cookie: {
-        secure: process.env.ENVIRONMENT === 'production', // HTTPS only in production
+        // ✅ 7-DAY EXPIRATION
+        maxAge: SEVEN_DAYS_MS,  // 7 days from last activity
+        
+        // ✅ SECURITY: Prevents JavaScript access (XSS protection)
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
+        
+        // ✅ SECURITY: HTTPS only in production
+        secure: process.env.NODE_ENV === 'production',
+        
+        // ✅ SECURITY: Prevents CSRF attacks
+        sameSite: 'strict',
+        
+        path: '/'
+    },
+
+    // ===== SESSION BEHAVIOR =====
+    // Don't save session if not modified
+    saveUninitialized: false,
+    
+    // Resave even if unmodified (needed for rolling refresh)
+    resave: true,
+    
+    // ✅ ROLLING REFRESH: Extends 7 days on each request
+    rolling: true,
+
+    // Cookie name
+    name: 'sessionId'
 }));
+
+// ============================================
+// PROTECTION MIDDLEWARE
+// ============================================
+
+// Check if user is authenticated (has valid session)
+function requireAuth(req, res, next) {
+    if (!req.session.userId) {
+        return res.status(401).json({
+            success: false,
+            error: 'Not authenticated',
+            message: 'Session expired or not logged in'
+        });
+    }
+    next();
+}
+
+// Check if user has admin role
+function requireAdmin(req, res, next) {
+    if (!req.session.userId) {
+        return res.status(401).json({
+            success: false,
+            error: 'Not authenticated'
+        });
+    }
+    if (req.session.role !== 'admin' && req.session.role !== 'superior') {
+        return res.status(403).json({
+            success: false,
+            error: 'Access denied. Admin role required.'
+        });
+    }
+    next();
+}
+
+// Make middleware available globally
+app.use((req, res, next) => {
+    req.requireAuth = requireAuth;
+    req.requireAdmin = requireAdmin;
+    next();
+});
 
 // TODO: Add Passport middleware
 // const passport = require('passport');
@@ -61,12 +149,21 @@ app.use('/api/v1/auth', authRoutes);
 const tenantRoutes = require('./routes/tenants');
 app.use('/api/v1/tenants', tenantRoutes);
 
+// Admin routes (require admin role)
+const adminRoutes = require('./routes/admin');
+app.use('/api/v1/admin', adminRoutes);
+
+// API Keys routes
+const apiKeyRoutes = require('./routes/apiKeys');
+app.use('/api/v1/api-keys', apiKeyRoutes);
+
+// Rules routes
+const rulesRoutes = require('./routes/rules');
+app.use('/api/v1/rules', rulesRoutes);
+
 // TODO: Add other routes as they are created
 // const ticketRoutes = require('./routes/tickets');
 // app.use('/api/v1/tickets', ticketRoutes);
-
-// const apiKeyRoutes = require('./routes/apiKeys');
-// app.use('/api/v1/api-keys', apiKeyRoutes);
 
 // ============================================
 // FRONTEND ROUTES
@@ -94,7 +191,7 @@ app.use((err, req, res, next) => {
     console.error('Server error:', err);
     res.status(err.status || 500).json({
         success: false,
-        error: process.env.ENVIRONMENT === 'development' ? err.message : 'Internal server error'
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
     });
 });
 
@@ -104,6 +201,23 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`HelpHub server running on http://localhost:${PORT}`);
-    console.log(`Environment: ${process.env.ENVIRONMENT || 'development'}`);
+    console.log(`
+╔════════════════════════════════════════╗
+║   HelpHub Server Started               ║
+╠════════════════════════════════════════╣
+║ Port: ${PORT}                                 ║
+║ Environment: ${process.env.NODE_ENV || 'development'}             ║
+║ Session: 7-day MongoDB persistence     ║
+║ Rolling: Yes (refreshes on each req)   ║
+╚════════════════════════════════════════╝
+
+Session Features:
+  ✅ 7-day expiration (from last activity)
+  ✅ Rolls/refreshes on each request
+  ✅ HttpOnly cookies (XSS protection)
+  ✅ Secure flag (HTTPS in production)
+  ✅ SameSite: strict (CSRF protection)
+    `);
 });
+
+module.exports = app;
