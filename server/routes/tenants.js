@@ -41,8 +41,7 @@ router.post(
     const role = assertRole(req.body.role || "agent", ROLES);
     const shareCode = await new TenantModel(getDB()).createShareCode(
       req.tenantId,
-      role,
-      req.user.id
+      role
     );
     res.status(201).json({ success: true, data: shareCode });
   })
@@ -165,11 +164,6 @@ router.put(
         req.body.supportEmailAlias,
         "Support email"
       );
-    if (req.body.slaTargets !== undefined) {
-      throw new ValidationError(
-        "Update SLA targets with PUT /api/v1/rules/sla-targets"
-      );
-    }
     if (Object.keys(updates).length === 0) {
       throw new ValidationError(
         "Nothing to update. Send name and/or supportEmailAlias."

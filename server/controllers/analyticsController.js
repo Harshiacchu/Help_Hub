@@ -340,34 +340,6 @@ class AnalyticsController {
     return result;
   }
 
-  /** [{ date: 'YYYY-MM-DD', resolved: n }] - defaults to the last 30 days. */
-  async getResolutionTrend(tenantId, filters = {}) {
-    const end =
-      parseDateParam(filters.endDate, "endDate", { endOfDay: true }) ||
-      new Date();
-    const start =
-      parseDateParam(filters.startDate, "startDate") ||
-      new Date(end.getTime() - 30 * 24 * HOUR_MS);
-    const base = this.buildMatch(tenantId, {
-      priority: filters.priority,
-      category: filters.category,
-    });
-
-    const rows = await this.tickets
-      .aggregate([
-        { $match: { ...base, resolvedAt: { $gte: start, $lte: end } } },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$resolvedAt" } },
-            resolved: { $sum: 1 },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ])
-      .toArray();
-    return rows.map((r) => ({ date: r._id, resolved: r.resolved }));
-  }
-
   /** [{ category, avgResponseTime }] sorted slowest first. */
   async getResponseTimeByCategory(tenantId, filters = {}) {
     const match = this.buildMatch(tenantId, filters);
@@ -393,17 +365,12 @@ class AnalyticsController {
         ? match.createdAt.$lte.getUTCFullYear()
         : new Date().getUTCFullYear();
 
-    const [
-      slaByPriority,
-      responseTimeByCategory,
-      quarterlyMetrics,
-      resolutionTrend,
-    ] = await Promise.all([
-      this.getSLAByPriority(tenantId, filters),
-      this.getResponseTimeByCategory(tenantId, filters),
-      this.getQuarterlyMetrics(tenantId, year, filters),
-      this.getResolutionTrend(tenantId, filters),
-    ]);
+    const [slaByPriority, responseTimeByCategory, quarterlyMetrics] =
+      await Promise.all([
+        this.getSLAByPriority(tenantId, filters),
+        this.getResponseTimeByCategory(tenantId, filters),
+        this.getQuarterlyMetrics(tenantId, year, filters),
+      ]);
 
     return {
       filters: {
@@ -416,7 +383,6 @@ class AnalyticsController {
       slaByPriority,
       responseTimeByCategory,
       quarterlyMetrics,
-      resolutionTrend,
     };
   }
 
@@ -500,11 +466,7 @@ class AnalyticsController {
           .join(",")
       );
     }
-    return {
-      csv: lines.join("\r\n") + "\r\n",
-      rowCount: tickets.length,
-      truncated: tickets.length === EXPORT_ROW_LIMIT,
-    };
+    return lines.join("\r\n") + "\r\n";
   }
 }
 

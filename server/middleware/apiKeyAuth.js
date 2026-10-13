@@ -1,69 +1,33 @@
 // server/middleware/apiKeyAuth.js - X-API-Key authentication
 //
-// Strict (key required):
-//   app.use('/api/v1/integrations', apiKeyAuth, routes);
-// Optional (key OR logged-in session), e.g. for ticket creation:
-//   app.use('/api/v1/tickets', apiKeyAuth.optional, requireTenant, ticketRoutes);
-//
-// On success: req.tenantId, req.apiKeyId and req.source = 'api'.
-// req.user is null: the request is made by a system, not a logged-in person.
+// For routes that other systems call with an API key, e.g. Emily's tickets:
+//   app.use("/api/v1/tickets", apiKeyAuth.optional, requireTenant, ticketRoutes);
+// On success: req.tenantId, req.apiKeyId, req.source = "api" and req.user = null
+// (the request comes from a system, not a logged-in person).
 
 import { getDB } from "../config/db.js";
 import ApiKeyModel from "../models/apiKey.js";
 
 async function apiKeyAuth(req, res, next) {
-  const apiKey = req.get("X-API-Key"); // header lookup is case-insensitive
-
-  if (!apiKey) {
-    return res
-      .status(401)
-      .json({ success: false, error: "X-API-Key header required" });
-  }
-  if (!ApiKeyModel.looksLikeKey(apiKey)) {
-    return res
-      .status(401)
-      .json({ success: false, error: "Invalid or revoked API key" });
-  }
-
-  let db;
   try {
-    db = getDB();
-  } catch {
-    return res
-      .status(503)
-      .json({ success: false, error: "Service temporarily unavailable" });
-  }
-
-  try {
-    const apiKeyModel = new ApiKeyModel(db);
-    const keyData = await apiKeyModel.validate(apiKey);
-
-    if (!keyData) {
+    const key = await new ApiKeyModel(getDB()).validate(req.get("X-API-Key"));
+    if (!key) {
       return res
         .status(401)
-        .json({ success: false, error: "Invalid or revoked API key" });
+        .json({ success: false, error: "Invalid or missing API key" });
     }
-
-    req.tenantId = keyData.tenantId.toString();
-    req.apiKeyId = keyData._id.toString();
+    req.tenantId = key.tenantId.toString();
+    req.apiKeyId = key._id.toString();
     req.source = "api";
-    req.user = null; // never mix a browser session's user with another company's key
-
-    // Usage stats are non-critical: never fail the request because of them
-    apiKeyModel.updateLastUsed(keyData._id).catch((error) => {
-      console.warn("Could not update API key lastUsedAt:", error.message);
-    });
-
+    req.user = null;
     next();
   } catch (error) {
     next(error);
   }
 }
 
-/** Runs apiKeyAuth only when an X-API-Key header is present. */
-apiKeyAuth.optional = function optionalApiKeyAuth(req, res, next) {
-  if (!req.get("X-API-Key")) return next();
-  return apiKeyAuth(req, res, next);
-};
+/** Checks the key only when an X-API-Key header is sent; otherwise the login session is used. */
+apiKeyAuth.optional = (req, res, next) =>
+  req.get("X-API-Key") ? apiKeyAuth(req, res, next) : next();
 
 export default apiKeyAuth;

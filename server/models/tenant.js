@@ -1,14 +1,13 @@
-// server/models/tenant.js - Tenants (organizations) and invite share codes
+// server/models/tenant.js - Companies (tenants) and their invite share codes
 
 import crypto from "node:crypto";
 import { mustObjectId, toObjectId } from "../config/db.js";
-import {
-  ROLES,
-  DEFAULT_SLA_TARGETS,
-  ValidationError,
-} from "../utils/validators.js";
+import { ROLES, ValidationError } from "../utils/validators.js";
 
-const SHARE_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SHARE_CODE_HOURS = 24;
+
+const normalizeCode = (code) =>
+  typeof code === "string" ? code.trim().toUpperCase() : "";
 
 class TenantModel {
   constructor(db) {
@@ -16,6 +15,7 @@ class TenantModel {
     this.shareCodes = db.collection("shareCodes");
   }
 
+  /** What the API returns - never the AI prompt. */
   static toPublic(tenant) {
     if (!tenant) return null;
     return {
@@ -23,33 +23,18 @@ class TenantModel {
       name: tenant.name,
       slug: tenant.slug,
       supportEmailAlias: tenant.supportEmailAlias,
-      slaTargets: tenant.slaTargets,
-      status: tenant.status,
       createdAt: tenant.createdAt,
-      updatedAt: tenant.updatedAt,
     };
   }
 
-  static generateShareCode() {
-    // 64 bits of cryptographic randomness, e.g. SHARE_9F3A1C77B2E04D5A
-    return "SHARE_" + crypto.randomBytes(8).toString("hex").toUpperCase();
-  }
-
-  static normalizeCode(code) {
-    return typeof code === "string" ? code.trim().toUpperCase() : "";
-  }
-
-  /** Throws the driver's duplicate-key error (code 11000) if the slug is taken. */
-  async create({ name, slug, supportEmailAlias, slaTargets }) {
-    const now = new Date();
+  /** Throws a duplicate-key error (code 11000) if the slug is taken. */
+  async create({ name, slug, supportEmailAlias }) {
     const tenant = {
       name,
       slug,
       supportEmailAlias,
-      slaTargets: slaTargets || { ...DEFAULT_SLA_TARGETS },
       status: "active",
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date(),
     };
     const result = await this.collection.insertOne(tenant);
     return { ...tenant, _id: result.insertedId };
@@ -57,113 +42,73 @@ class TenantModel {
 
   async findById(tenantId) {
     const _id = toObjectId(tenantId);
-    if (!_id) return null;
-    return this.collection.findOne({ _id, status: { $ne: "deleted" } });
+    return _id ? this.collection.findOne({ _id }) : null;
   }
 
   async findBySlug(slug) {
-    if (typeof slug !== "string" || !slug.trim()) return null;
+    if (typeof slug !== "string") return null;
     return this.collection.findOne({
       slug: slug.trim().toLowerCase(),
       status: "active",
     });
   }
 
-  /** Only name and supportEmailAlias can change here. SLA changes go through RulesModel. */
-  async update(tenantId, { name, supportEmailAlias }) {
-    const set = {};
-    if (name !== undefined) set.name = name;
-    if (supportEmailAlias !== undefined)
-      set.supportEmailAlias = supportEmailAlias;
-    if (Object.keys(set).length === 0) return this.findById(tenantId);
-
-    set.updatedAt = new Date();
+  /** Changes the name and/or support email. */
+  async update(tenantId, changes) {
     await this.collection.updateOne(
       { _id: mustObjectId(tenantId, "tenant id") },
-      { $set: set }
+      { $set: changes }
     );
     return this.findById(tenantId);
   }
 
-  /** Stores the company's AI triage prompt in its record. Returns false if no such company. */
+  /** Stores the company's AI prompt in its record (used by `npm run prompts`). */
   async setTriagePrompt(slug, prompt) {
     const result = await this.collection.updateOne(
       { slug, status: "active" },
-      { $set: { triagePrompt: prompt, updatedAt: new Date() } }
+      { $set: { triagePrompt: prompt } }
     );
     return result.matchedCount > 0;
   }
 
-  /** Hard delete - only used to roll back a half-finished tenant registration. */
-  async remove(tenantId) {
-    await this.collection.deleteOne({
-      _id: mustObjectId(tenantId, "tenant id"),
-    });
-  }
-
   // ============================================
-  // SHARE CODES (invites)
+  // SHARE CODES (single-use invites, valid for 24 hours)
   // ============================================
 
-  async createShareCode(tenantId, role = "agent", createdBy = null) {
+  async createShareCode(tenantId, role = "agent") {
     if (!ROLES.includes(role)) {
       throw new ValidationError(`Role must be one of: ${ROLES.join(", ")}`);
     }
-
-    const now = new Date();
     const shareCode = {
       tenantId: mustObjectId(tenantId, "tenant id"),
-      code: TenantModel.generateShareCode(),
+      code: "SHARE_" + crypto.randomBytes(8).toString("hex").toUpperCase(),
       role,
-      createdBy: createdBy ? toObjectId(createdBy) : null,
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + SHARE_CODE_TTL_MS),
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + SHARE_CODE_HOURS * 60 * 60 * 1000),
       usedAt: null,
       usedBy: null,
     };
-
     await this.shareCodes.insertOne(shareCode);
-    return {
-      code: shareCode.code,
-      role: shareCode.role,
-      expiresAt: shareCode.expiresAt,
-    };
+    return { code: shareCode.code, role, expiresAt: shareCode.expiresAt };
   }
 
-  /**
-   * Atomically claims an unused, unexpired code. Two people submitting the
-   * same code at the same moment can't both get in.
-   * @returns {Promise<Object|null>} the claimed code document (with tenantId and role), or null
-   */
-  async claimShareCode(code) {
-    const normalized = TenantModel.normalizeCode(code);
-    if (!normalized) return null;
-    const now = new Date();
-
-    return this.shareCodes.findOneAndUpdate(
-      { code: normalized, usedAt: null, expiresAt: { $gt: now } },
-      { $set: { usedAt: now } },
-      { returnDocument: "after", includeResultMetadata: false }
-    );
+  /** An unused, unexpired code, or null. */
+  async findShareCode(code) {
+    return this.shareCodes.findOne({
+      code: normalizeCode(code),
+      usedAt: null,
+      expiresAt: { $gt: new Date() },
+    });
   }
 
-  /** Gives a claimed code back if creating the user failed (e.g. duplicate email). */
-  async releaseShareCode(code) {
-    await this.shareCodes.updateOne(
-      { code: TenantModel.normalizeCode(code), usedBy: null },
-      { $set: { usedAt: null } }
-    );
-  }
-
-  /** Records who used the code once their account exists. */
   async markShareCodeUsed(code, userId) {
     await this.shareCodes.updateOne(
-      { code: TenantModel.normalizeCode(code) },
-      { $set: { usedBy: mustObjectId(userId, "user id") } }
+      { code: normalizeCode(code) },
+      { $set: { usedAt: new Date(), usedBy: mustObjectId(userId, "user id") } }
     );
   }
 
-  /** Unused, unexpired codes for this tenant. */
+  /** Unused, unexpired codes for this company. */
   async listActiveShareCodes(tenantId) {
     const codes = await this.shareCodes
       .find({
@@ -173,18 +118,19 @@ class TenantModel {
       })
       .sort({ createdAt: -1 })
       .toArray();
-    return codes.map((c) => ({
-      code: c.code,
-      role: c.role,
-      createdAt: c.createdAt,
-      expiresAt: c.expiresAt,
+    return codes.map(({ code, role, createdAt, expiresAt }) => ({
+      code,
+      role,
+      createdAt,
+      expiresAt,
     }));
   }
 
+  /** Cancels an unused code; false if there was none. */
   async revokeShareCode(tenantId, code) {
     const result = await this.shareCodes.deleteOne({
       tenantId: mustObjectId(tenantId, "tenant id"),
-      code: TenantModel.normalizeCode(code),
+      code: normalizeCode(code),
       usedAt: null,
     });
     return result.deletedCount > 0;

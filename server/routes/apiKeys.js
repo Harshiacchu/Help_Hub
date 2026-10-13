@@ -1,8 +1,8 @@
 // server/routes/apiKeys.js - API key management
 // Mounted in index.js behind requireAuth + requireRole('superior').
 //
-// POST   /                 { name }  -> full key returned ONCE
-// GET    /                 active keys (prefix only, never the full key)
+// POST   /                 { name }  -> the full key is returned once
+// GET    /                 active keys (prefix only)
 // DELETE /:keyId           revoke
 // POST   /:keyId/rotate    revoke + issue a replacement with the same name
 
@@ -17,43 +17,27 @@ const router = express.Router();
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const name = cleanText(req.body.name, "API key name", { min: 1, max: 60 });
-    const apiKeyModel = new ApiKeyModel(getDB());
-
+    const name = cleanText(req.body.name, "API key name", { max: 60 });
+    const apiKeys = new ApiKeyModel(getDB());
     if (
-      (await apiKeyModel.countActive(req.tenantId)) >=
+      (await apiKeys.countActive(req.tenantId)) >=
       ApiKeyModel.MAX_KEYS_PER_TENANT
     ) {
       throw new ValidationError(
-        `You can have at most ${ApiKeyModel.MAX_KEYS_PER_TENANT} active API keys. Revoke one first.`,
+        `You can have at most ${ApiKeyModel.MAX_KEYS_PER_TENANT} active API keys`,
         409
       );
     }
-    if (await apiKeyModel.activeNameExists(req.tenantId, name)) {
-      throw new ValidationError(
-        "An active API key with this name already exists",
-        409
-      );
-    }
-
-    const { key, record } = await apiKeyModel.create(
-      req.tenantId,
-      name,
-      req.user.id
-    );
-    res.status(201).json({
-      success: true,
-      data: { ...record, key },
-      message: "Copy this key now - it will not be shown again.",
-    });
+    const { key, record } = await apiKeys.create(req.tenantId, name);
+    res.status(201).json({ success: true, data: { ...record, key } });
   })
 );
 
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const keys = await new ApiKeyModel(getDB()).listActive(req.tenantId);
-    res.json({ success: true, data: keys });
+    const data = await new ApiKeyModel(getDB()).listActive(req.tenantId);
+    res.json({ success: true, data });
   })
 );
 
@@ -64,12 +48,12 @@ router.delete(
       req.tenantId,
       req.params.keyId
     );
-    if (!revoked)
-      return res.status(404).json({
-        success: false,
-        error: "API key not found or already revoked",
-      });
-    res.json({ success: true, message: "API key revoked" });
+    if (!revoked) {
+      return res
+        .status(404)
+        .json({ success: false, error: "API key not found" });
+    }
+    res.json({ success: true });
   })
 );
 
@@ -78,24 +62,14 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await new ApiKeyModel(getDB()).rotate(
       req.tenantId,
-      req.params.keyId,
-      req.user.id
+      req.params.keyId
     );
-    if (!result)
-      return res.status(404).json({
-        success: false,
-        error: "API key not found or already revoked",
-      });
-    res.json({
-      success: true,
-      data: {
-        ...result.record,
-        key: result.key,
-        rotatedFrom: result.rotatedFrom,
-      },
-      message:
-        "Old key revoked. Copy the new key now - it will not be shown again.",
-    });
+    if (!result) {
+      return res
+        .status(404)
+        .json({ success: false, error: "API key not found" });
+    }
+    res.json({ success: true, data: { ...result.record, key: result.key } });
   })
 );
 

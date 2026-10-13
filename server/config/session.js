@@ -14,14 +14,11 @@ const COOKIE_OPTIONS = Object.freeze({
   path: "/",
 });
 
+// index.js checks that SESSION_SECRET is set before calling this
 function createSessionMiddleware() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) {
-    throw new Error("SESSION_SECRET is not set. Add it to your .env file.");
-  }
   return session({
     name: SESSION_COOKIE_NAME,
-    secret,
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false, // no session until someone logs in
     cookie: { ...COOKIE_OPTIONS },

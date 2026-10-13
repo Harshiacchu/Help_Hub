@@ -119,15 +119,6 @@ async function loadAnalytics() {
       )
       .join("");
 
-    const trendRows =
-      data.resolutionTrend
-        .map(
-          (d) =>
-            `<tr><td>${escapeHtml(d.date)}</td><td>${escapeHtml(d.resolved)}</td></tr>`
-        )
-        .join("") ||
-      '<tr><td colspan="2" class="text-muted">No tickets resolved in this range</td></tr>';
-
     $("analyticsResults").innerHTML = `
       <div class="row mt-3">
         <div class="col-md-6">
@@ -140,21 +131,12 @@ async function loadAnalytics() {
         </div>
       </div>
       <div class="row mt-3">
-        <div class="col-md-8">
+        <div class="col-12">
           <h6>Quarterly Metrics (${escapeHtml(data.filters.year)})</h6>
           <table class="table table-sm">
             <thead><tr><th>Quarter</th><th>Created</th><th>Resolved</th><th>SLA Compliance</th></tr></thead>
             <tbody>${quarterRows}</tbody>
           </table>
-        </div>
-        <div class="col-md-4">
-          <h6>Resolved per Day</h6>
-          <div class="table-scroll">
-            <table class="table table-sm">
-              <thead><tr><th>Date</th><th>Resolved</th></tr></thead>
-              <tbody>${trendRows}</tbody>
-            </table>
-          </div>
         </div>
       </div>`;
   } catch (error) {

@@ -13,7 +13,7 @@ class ValidationError extends Error {
 
 const ROLES = ["customer", "agent", "superior"];
 const STAFF_ROLES = ["agent", "superior"];
-const USER_STATUSES = ["active", "inactive", "locked", "deleted"];
+const USER_STATUSES = ["active", "inactive", "deleted"];
 
 const SLA_LEVELS = ["critical", "high", "medium", "low", "minimal"];
 const PRIORITY_TO_SLA_LEVEL = {

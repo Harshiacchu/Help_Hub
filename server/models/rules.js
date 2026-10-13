@@ -48,7 +48,6 @@ const CUSTOM_FIELD_TYPES = [
 class RulesModel {
   constructor(db) {
     this.collection = db.collection("rules");
-    this.tenants = db.collection("tenants");
   }
 
   // ============================================
@@ -267,15 +266,9 @@ class RulesModel {
     return categories;
   }
 
-  /** Also mirrors the targets onto the tenant document so the two never drift apart. */
   async setSlaTargets(tenantId, input, updatedBy = null) {
     const slaTargets = validateSlaTargets(input);
-    const tid = mustObjectId(tenantId, "tenant id");
-    await this._upsert(tid, RULE_NAMES.SLA_TARGETS, slaTargets, updatedBy);
-    await this.tenants.updateOne(
-      { _id: tid },
-      { $set: { slaTargets, updatedAt: new Date() } }
-    );
+    await this._upsert(tenantId, RULE_NAMES.SLA_TARGETS, slaTargets, updatedBy);
     return slaTargets;
   }
 
@@ -290,42 +283,23 @@ class RulesModel {
     return customFields;
   }
 
-  /** Safe to call more than once - only fills in rules that don't exist yet. */
+  /** The starting rules for a newly registered company. */
   async initializeDefaults(tenantId, { slaTargets } = {}) {
     const tid = mustObjectId(tenantId, "tenant id");
-    const now = new Date();
     const defaults = {
       [RULE_NAMES.PRIORITY_LABELS]: { ...DEFAULT_PRIORITY_LABELS },
       [RULE_NAMES.CATEGORIES]: { categories: [...DEFAULT_CATEGORIES] },
-      [RULE_NAMES.SLA_TARGETS]: slaTargets
-        ? validateSlaTargets(slaTargets)
-        : { ...DEFAULT_SLA_TARGETS },
+      [RULE_NAMES.SLA_TARGETS]: slaTargets || { ...DEFAULT_SLA_TARGETS },
       [RULE_NAMES.CUSTOM_FIELDS]: [],
     };
-
-    await this.collection.bulkWrite(
+    await this.collection.insertMany(
       Object.entries(defaults).map(([ruleName, value]) => ({
-        updateOne: {
-          filter: { tenantId: tid, ruleName },
-          update: {
-            $setOnInsert: {
-              value,
-              createdAt: now,
-              updatedAt: now,
-              updatedBy: null,
-            },
-          },
-          upsert: true,
-        },
+        tenantId: tid,
+        ruleName,
+        value,
+        updatedAt: new Date(),
       }))
     );
-  }
-
-  async deleteByTenant(tenantId) {
-    const result = await this.collection.deleteMany({
-      tenantId: mustObjectId(tenantId, "tenant id"),
-    });
-    return result.deletedCount;
   }
 
   async _upsert(tenantId, ruleName, value, updatedBy) {

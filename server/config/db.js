@@ -1,114 +1,43 @@
-// server/config/db.js - MongoDB Atlas connection (native driver)
+// server/config/db.js - MongoDB connection (native driver) and id helpers
 //
 // MONGODB_URI comes from .env, e.g.
 //   mongodb+srv://<db_username>:<db_password>@<cluster>.mongodb.net/?appName=HelpHub
 
 import { MongoClient, ObjectId } from "mongodb";
 
-const DB_NAME = process.env.DB_NAME || "helpHub";
-
 let client = null;
 let db = null;
 
+// Unique indexes keep the data consistent. The last one deletes expired share codes.
+// (Emily adds indexes for tickets, comments and auditLog with her models.)
+const INDEXES = [
+  ["tenants", { slug: 1 }, { unique: true }],
+  ["users", { tenantId: 1, email: 1 }, { unique: true }],
+  ["apikeys", { keyHash: 1 }, { unique: true }],
+  ["rules", { tenantId: 1, ruleName: 1 }, { unique: true }],
+  ["shareCodes", { code: 1 }, { unique: true }],
+  ["shareCodes", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
+];
+
 async function connectDB() {
   if (db) return db;
-
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) {
+  if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is not set. Add it to your .env file.");
   }
 
-  client = new MongoClient(mongoUri, {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 10000,
-  });
-
+  client = new MongoClient(process.env.MONGODB_URI);
   await client.connect();
-  db = client.db(DB_NAME);
-  await db.command({ ping: 1 });
+  db = client.db(process.env.DB_NAME || "helpHub");
 
-  console.log(`MongoDB connected (database: ${DB_NAME})`);
-
-  await createIndexes();
-  return db;
-}
-
-/**
- * Creates one index. Unique/TTL indexes protect data integrity, so a failure
- * stops the server - except when an older index with the same keys already
- * exists, in which case we explain how to fix it instead of crashing.
- */
-async function ensureIndex(
-  collectionName,
-  keys,
-  options = {},
-  { critical = false } = {}
-) {
-  try {
-    await db.collection(collectionName).createIndex(keys, options);
-  } catch (error) {
-    const conflict = error.code === 85 || error.code === 86; // IndexOptionsConflict / IndexKeySpecsConflict
-    if (conflict) {
-      console.warn(
-        `Index on ${collectionName} ${JSON.stringify(keys)} already exists with different options. ` +
-          `Drop it in Atlas (Collections > ${collectionName} > Indexes) and restart to apply the new one.`
-      );
-      return;
+  for (const [collection, keys, options] of INDEXES) {
+    try {
+      await db.collection(collection).createIndex(keys, options);
+    } catch (error) {
+      console.warn(`Index on ${collection} not created: ${error.message}`);
     }
-    if (critical) throw error;
-    console.warn(
-      `Could not create index on ${collectionName} ${JSON.stringify(keys)}: ${error.message}`
-    );
   }
-}
-
-// Indexes for Abhinay's collections only. Emily adds tickets/comments/auditLog
-// indexes alongside her models.
-async function createIndexes() {
-  // Integrity (must succeed)
-  await ensureIndex(
-    "tenants",
-    { slug: 1 },
-    { unique: true },
-    { critical: true }
-  );
-  await ensureIndex(
-    "users",
-    { tenantId: 1, email: 1 },
-    { unique: true },
-    { critical: true }
-  );
-  await ensureIndex(
-    "apikeys",
-    { keyHash: 1 },
-    { unique: true },
-    { critical: true }
-  );
-  await ensureIndex(
-    "rules",
-    { tenantId: 1, ruleName: 1 },
-    { unique: true },
-    { critical: true }
-  );
-  await ensureIndex(
-    "shareCodes",
-    { code: 1 },
-    { unique: true },
-    { critical: true }
-  );
-  await ensureIndex(
-    "shareCodes",
-    { expiresAt: 1 },
-    { expireAfterSeconds: 0 },
-    { critical: true }
-  );
-
-  // Performance
-  await ensureIndex("users", { tenantId: 1, role: 1 });
-  await ensureIndex("apikeys", { tenantId: 1, revokedAt: 1 });
-  await ensureIndex("shareCodes", { tenantId: 1 });
-
-  console.log("Database indexes ready");
+  console.log("MongoDB connected");
+  return db;
 }
 
 function getDB() {
@@ -117,33 +46,26 @@ function getDB() {
 }
 
 async function closeDB() {
-  if (client) {
-    await client.close();
-    client = null;
-    db = null;
-    console.log("MongoDB connection closed");
-  }
+  if (client) await client.close();
+  client = null;
+  db = null;
 }
 
-/**
- * Converts a 24-character hex string (or ObjectId) to an ObjectId.
- * Returns null for anything else, so callers can answer 400/404
- * instead of crashing or silently querying with a bad id.
- */
+/** A 24-character hex string (or ObjectId) as an ObjectId; null for anything else. */
 function toObjectId(id) {
   if (id instanceof ObjectId) return id;
-  if (typeof id === "string" && /^[a-f0-9]{24}$/i.test(id))
+  if (typeof id === "string" && /^[a-f0-9]{24}$/i.test(id)) {
     return new ObjectId(id);
+  }
   return null;
 }
 
-/** Like toObjectId, but throws a 400 error instead of returning null. */
+/** Like toObjectId, but a bad id is a 400 error. */
 function mustObjectId(id, label = "id") {
   const oid = toObjectId(id);
   if (!oid) {
     const error = new Error(`Invalid ${label}`);
     error.status = 400;
-    error.expose = true;
     throw error;
   }
   return oid;
