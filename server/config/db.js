@@ -7,6 +7,7 @@ import { MongoClient, ObjectId } from "mongodb";
 
 let client = null;
 let db = null;
+let connecting = null; // shared, so requests arriving together open one connection
 
 // Unique indexes keep the data consistent. The last one deletes expired share codes.
 // (Emily adds indexes for tickets, comments and auditLog with her models.)
@@ -19,8 +20,18 @@ const INDEXES = [
   ["shareCodes", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
 ];
 
-async function connectDB() {
-  if (db) return db;
+/** Connects once; every later call reuses the same connection. */
+function connectDB() {
+  if (!connecting) {
+    connecting = openConnection().catch((error) => {
+      connecting = null; // let the next request try again
+      throw error;
+    });
+  }
+  return connecting;
+}
+
+async function openConnection() {
   if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is not set. Add it to your .env file.");
   }
@@ -49,6 +60,7 @@ async function closeDB() {
   if (client) await client.close();
   client = null;
   db = null;
+  connecting = null;
 }
 
 /** A 24-character hex string (or ObjectId) as an ObjectId; null for anything else. */

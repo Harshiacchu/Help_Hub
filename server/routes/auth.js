@@ -7,10 +7,9 @@
 // GET  /api/v1/auth/me
 
 import express from "express";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 import { getDB, isDuplicateKeyError } from "../config/db.js";
-import { SESSION_COOKIE_NAME, COOKIE_OPTIONS } from "../config/session.js";
 import { requireAuth, asyncHandler } from "../middleware/auth.js";
 import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
@@ -170,10 +169,8 @@ router.post(
 );
 
 router.post("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie(SESSION_COOKIE_NAME, COOKIE_OPTIONS);
-    res.json({ success: true });
-  });
+  req.session = null; // clears the session cookie
+  res.json({ success: true });
 });
 
 router.get(
@@ -186,10 +183,10 @@ router.get(
       req.user.id
     );
     if (!user || user.status !== "active") {
-      req.session.destroy(() => {
-        res.status(401).json({ success: false, error: "Not authenticated" });
-      });
-      return;
+      req.session = null;
+      return res
+        .status(401)
+        .json({ success: false, error: "Not authenticated" });
     }
     res.json({
       success: true,

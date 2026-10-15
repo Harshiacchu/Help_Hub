@@ -1,28 +1,20 @@
 // server/config/session.js - Login sessions (basic)
 //
-// express-session with its default in-memory store. The cookie has no expiry
-// date, so closing the browser logs the user out (so does restarting the server).
+// The session lives in a signed cookie, so nothing is stored on the server and
+// it works on Vercel. The cookie has no expiry date: closing the browser logs
+// the user out. Log out by setting req.session = null.
 
-import session from "express-session";
+import cookieSession from "cookie-session";
 
-const SESSION_COOKIE_NAME = "sessionId";
-
-const COOKIE_OPTIONS = Object.freeze({
-  httpOnly: true, // JavaScript cannot read the cookie
-  secure: process.env.NODE_ENV === "production", // HTTPS only when deployed
-  sameSite: "strict", // not sent on requests from other sites
-  path: "/",
-});
-
-// index.js checks that SESSION_SECRET is set before calling this
+// app.js checks that SESSION_SECRET is set before calling this
 function createSessionMiddleware() {
-  return session({
-    name: SESSION_COOKIE_NAME,
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false, // no session until someone logs in
-    cookie: { ...COOKIE_OPTIONS },
+  return cookieSession({
+    name: "sessionId",
+    keys: [process.env.SESSION_SECRET], // signs the cookie so it can't be changed
+    httpOnly: true, // JavaScript cannot read the cookie
+    secure: process.env.NODE_ENV === "production", // HTTPS only when deployed
+    sameSite: "strict", // not sent on requests from other sites
   });
 }
 
-export { createSessionMiddleware, SESSION_COOKIE_NAME, COOKIE_OPTIONS };
+export { createSessionMiddleware };

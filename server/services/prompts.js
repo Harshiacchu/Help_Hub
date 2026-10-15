@@ -13,7 +13,11 @@ const DEFAULT_FILE = "default.md";
 
 async function readDefaultPrompt() {
   try {
-    return await readFile(new URL(DEFAULT_FILE, PROMPTS_DIR), "utf8");
+    // A fixed path, so Vercel includes default.md when it bundles the app
+    return await readFile(
+      new URL("../prompts/default.md", import.meta.url),
+      "utf8"
+    );
   } catch {
     return "";
   }

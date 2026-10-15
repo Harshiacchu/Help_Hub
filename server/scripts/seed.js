@@ -6,7 +6,7 @@
 // Safe to re-run: it only deletes and recreates the three *-demo companies.
 
 import "dotenv/config";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 import { connectDB, getDB, closeDB } from "../config/db.js";
 import TenantModel from "../models/tenant.js";
