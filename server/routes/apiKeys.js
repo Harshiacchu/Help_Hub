@@ -1,5 +1,5 @@
 // server/routes/apiKeys.js - API key management
-// Mounted in index.js behind requireAuth + requireRole('superior').
+// Mounted in server/app.js behind requireAuth + requireRole('superior').
 //
 // POST   /                 { name }  -> the full key is returned once
 // GET    /                 active keys (prefix only)

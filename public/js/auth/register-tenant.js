@@ -23,10 +23,6 @@ slugInput.addEventListener("input", () => {
   slugInput.value = slugInput.value.toLowerCase();
 });
 
-function hours(id) {
-  return parseInt(document.getElementById(id).value, 10);
-}
-
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = form.querySelector('button[type="submit"]');
@@ -35,13 +31,6 @@ form.addEventListener("submit", async (event) => {
     name: document.getElementById("companyName").value.trim(),
     slug: slugInput.value.trim().toLowerCase(),
     supportEmailAlias: document.getElementById("supportEmail").value.trim(),
-    slaTargets: {
-      critical: hours("slaCritical"),
-      high: hours("slaHigh"),
-      medium: hours("slaMedium"),
-      low: hours("slaLow"),
-      minimal: hours("slaMinimal"),
-    },
   };
 
   button.disabled = true;

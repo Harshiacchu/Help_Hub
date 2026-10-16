@@ -1,5 +1,5 @@
 // server/routes/admin.js - Dashboard, analytics and CSV export
-// Mounted in index.js behind requireAuth + requireRole('superior').
+// Mounted in server/app.js behind requireAuth + requireRole('superior').
 //
 // GET /dashboard
 // GET /analytics?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&priority=1-5&category=Billing

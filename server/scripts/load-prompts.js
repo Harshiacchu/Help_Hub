@@ -1,29 +1,30 @@
-// server/scripts/load-prompts.js - Stores each company's prompt file in its record
-// Run after adding or editing server/prompts/<company-slug>.md:
+// server/scripts/load-prompts.js - Links each company's prompt file to its record
+// Run after adding a new server/prompts/<company-slug>.md file:
 //   npm run prompts
+// (Editing an existing file needs no command: the file is read for every ticket.)
 
 import "dotenv/config";
 import { connectDB, getDB, closeDB } from "../config/db.js";
-import { savePromptFiles } from "../services/prompts.js";
+import { linkPromptFiles } from "../services/prompts.js";
 
 async function main() {
   await connectDB();
-  const results = await savePromptFiles(getDB());
+  const results = await linkPromptFiles(getDB());
   if (results.length === 0) {
     console.log("No company prompt files found in server/prompts/");
   }
-  for (const { slug, saved } of results) {
+  for (const { slug, file, linked } of results) {
     console.log(
-      saved
-        ? `  saved    ${slug}`
-        : `  skipped  ${slug} (no company with this slug)`
+      linked
+        ? `  linked   ${slug} -> ${file}`
+        : `  skipped  ${file} (no company with the slug "${slug}")`
     );
   }
 }
 
 main()
   .catch((error) => {
-    console.error("Loading prompts failed:", error.message);
+    console.error("Linking prompts failed:", error.message);
     process.exitCode = 1;
   })
   .finally(closeDB);

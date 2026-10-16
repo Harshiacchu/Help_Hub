@@ -4,10 +4,7 @@
 import { requestJson } from "../common/api.js";
 import { copyText, escapeHtml, showAlert } from "../common/ui.js";
 
-const SLA_LEVELS = ["critical", "high", "medium", "low", "minimal"];
-
 let currentUser = null;
-let customFields = [];
 
 const $ = (id) => document.getElementById(id);
 const fmt1 = (n) => (typeof n === "number" ? n.toFixed(1) : "0.0");
@@ -34,6 +31,7 @@ async function loadDashboard() {
     $("slaCompliance").textContent = fmt1(data.slaCompliance) + "%";
     $("avgResponseTime").textContent = fmt1(data.avgResponseTime);
     $("avgResolutionTime").textContent = fmt1(data.avgResolutionTime);
+    applyCategoryFilterOptions(data.categories);
 
     $("priorityStats").innerHTML =
       Object.entries(data.ticketsByPriority)
@@ -375,17 +373,10 @@ async function setMemberStatus(userId, action) {
 }
 
 // ============================================
-// RULES & CONFIGURATION
+// ANALYTICS CATEGORY FILTER
 // ============================================
 
-function applyPriorityLabels(labels) {
-  for (const option of $("analyticsPriority").options) {
-    if (option.value) {
-      option.textContent = `${option.value} - ${labels[option.value]}`;
-    }
-  }
-}
-
+/** Fills the category filter with the categories this company's tickets use. */
 function applyCategoryFilterOptions(categories) {
   const select = $("analyticsCategory");
   const current = select.value;
@@ -394,157 +385,6 @@ function applyCategoryFilterOptions(categories) {
     ...categories.map((category) => new Option(category, category))
   );
   if (categories.includes(current)) select.value = current;
-}
-
-function renderCustomFields() {
-  document.querySelector("#customFieldsTable tbody").innerHTML =
-    customFields
-      .map(
-        (field, index) => `
-          <tr>
-            <td><code>${escapeHtml(field.key)}</code></td>
-            <td>${escapeHtml(field.label)}</td>
-            <td>${escapeHtml(field.type)}</td>
-            <td>${field.required ? "Yes" : "No"}</td>
-            <td>${escapeHtml((field.options || []).join(", "))}</td>
-            <td>
-              <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-field" data-index="${index}">Remove</button>
-            </td>
-          </tr>`
-      )
-      .join("") ||
-    '<tr><td colspan="6" class="text-muted">No custom fields yet</td></tr>';
-}
-
-/** Saves the whole list; the server validates it and returns the clean version. */
-async function saveCustomFields(nextFields, successMessage) {
-  try {
-    const { data } = await api("/api/v1/rules/custom-fields", {
-      method: "PUT",
-      body: { customFields: nextFields },
-    });
-    customFields = data;
-    renderCustomFields();
-    showAlert(successMessage, "success");
-    return true;
-  } catch (error) {
-    showAlert(error.message, "danger");
-    return false;
-  }
-}
-
-async function addCustomField(event) {
-  event.preventDefault();
-  const form = event.currentTarget; // read before any await
-  const field = {
-    key: $("fieldKey").value.trim(),
-    label: $("fieldLabel").value.trim(),
-    type: $("fieldType").value,
-    required: $("fieldRequired").checked,
-  };
-  if (field.type === "select") {
-    field.options = $("fieldOptions")
-      .value.split(",")
-      .map((option) => option.trim())
-      .filter(Boolean);
-  }
-  if (await saveCustomFields([...customFields, field], "Custom field added")) {
-    form.reset();
-    toggleOptionsInput();
-  }
-}
-
-function removeCustomField(index) {
-  const field = customFields[index];
-  if (!field || !confirm(`Remove the "${field.label}" field?`)) return;
-  saveCustomFields(
-    customFields.filter((_, i) => i !== index),
-    "Custom field removed"
-  );
-}
-
-/** Dropdown options only apply to the "Dropdown" type. */
-function toggleOptionsInput() {
-  const isSelect = $("fieldType").value === "select";
-  $("fieldOptions").disabled = !isSelect;
-  $("fieldOptions").required = isSelect;
-}
-
-async function loadRules() {
-  try {
-    const { data } = await api("/api/v1/rules");
-    for (let level = 1; level <= 5; level++) {
-      document.querySelector(`#prioritiesForm input[name="p${level}"]`).value =
-        data.priorities[level];
-    }
-    for (const level of SLA_LEVELS) {
-      document.querySelector(`#slaForm input[name="${level}"]`).value =
-        data.slaTargets[level];
-    }
-    $("categoriesInput").value = data.categories.join("\n");
-    applyPriorityLabels(data.priorities);
-    applyCategoryFilterOptions(data.categories);
-    customFields = data.customFields;
-    renderCustomFields();
-  } catch (error) {
-    console.error("Load rules error:", error);
-    showAlert("Failed to load configuration: " + error.message, "danger");
-  }
-}
-
-async function updatePriorities() {
-  const priorities = {};
-  for (let level = 1; level <= 5; level++) {
-    priorities[level] = document
-      .querySelector(`#prioritiesForm input[name="p${level}"]`)
-      .value.trim();
-  }
-  try {
-    const { data } = await api("/api/v1/rules/priorities", {
-      method: "PUT",
-      body: priorities,
-    });
-    applyPriorityLabels(data);
-    showAlert("Priorities updated", "success");
-    await loadDashboard();
-  } catch (error) {
-    showAlert(error.message, "danger");
-  }
-}
-
-async function updateSla() {
-  const slaTargets = {};
-  for (const level of SLA_LEVELS) {
-    slaTargets[level] = parseInt(
-      document.querySelector(`#slaForm input[name="${level}"]`).value,
-      10
-    );
-  }
-  try {
-    await api("/api/v1/rules/sla-targets", { method: "PUT", body: slaTargets });
-    showAlert("SLA targets updated", "success");
-  } catch (error) {
-    showAlert(error.message, "danger");
-  }
-}
-
-async function updateCategories() {
-  // One per line, so category names can contain commas
-  const categories = $("categoriesInput")
-    .value.split("\n")
-    .map((c) => c.trim())
-    .filter(Boolean);
-  try {
-    const { data } = await api("/api/v1/rules/categories", {
-      method: "PUT",
-      body: { categories },
-    });
-    $("categoriesInput").value = data.join("\n");
-    applyCategoryFilterOptions(data);
-    showAlert("Categories updated", "success");
-  } catch (error) {
-    showAlert(error.message, "danger");
-  }
 }
 
 // ============================================
@@ -609,11 +449,6 @@ function bindEvents() {
     copyText($("displayedKey").textContent, event.currentTarget)
   );
   $("createShareCodeButton").addEventListener("click", createShareCode);
-  $("savePrioritiesButton").addEventListener("click", updatePriorities);
-  $("saveSlaButton").addEventListener("click", updateSla);
-  $("saveCategoriesButton").addEventListener("click", updateCategories);
-  $("customFieldForm").addEventListener("submit", addCustomField);
-  $("fieldType").addEventListener("change", toggleOptionsInput);
   $("organizationForm").addEventListener("submit", saveOrganization);
 
   // Row buttons are rendered dynamically, so listen on the table bodies
@@ -637,13 +472,6 @@ function bindEvents() {
       if (button.dataset.action === "cancel") {
         cancelShareCode(button.dataset.code);
       }
-    });
-
-  document
-    .querySelector("#customFieldsTable tbody")
-    .addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-action=remove-field]");
-      if (button) removeCustomField(Number(button.dataset.index));
     });
 
   document
@@ -675,7 +503,6 @@ async function init() {
   $("tenantName").textContent =
     `${currentUser.tenantName || ""} - ${currentUser.name}`;
 
-  await loadRules(); // first, so custom priority labels are known
   await Promise.all([
     loadDashboard(),
     loadApiKeys(),

@@ -15,7 +15,7 @@ class TenantModel {
     this.shareCodes = db.collection("shareCodes");
   }
 
-  /** What the API returns - never the AI prompt. */
+  /** What the API returns - never the AI prompt file. */
   static toPublic(tenant) {
     if (!tenant) return null;
     return {
@@ -62,11 +62,11 @@ class TenantModel {
     return this.findById(tenantId);
   }
 
-  /** Stores the company's AI prompt in its record (used by `npm run prompts`). */
-  async setTriagePrompt(slug, prompt) {
+  /** Links the company to its prompt file in server/prompts/ (used by `npm run prompts`). */
+  async setPromptFile(slug, fileName) {
     const result = await this.collection.updateOne(
       { slug, status: "active" },
-      { $set: { triagePrompt: prompt } }
+      { $set: { promptFile: fileName } }
     );
     return result.matchedCount > 0;
   }

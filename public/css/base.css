@@ -54,10 +54,6 @@ small.text-muted {
   font-size: 0.8rem;
 }
 
-hr {
-  color: var(--color-border-light);
-}
-
 /* Space between a Font Awesome icon and the text after it */
 .fas {
   margin-right: 0.5rem;

@@ -11,8 +11,8 @@
     "prompts": "node server/scripts/load-prompts.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write . \"!package-lock.json\"",
+    "format:check": "prettier --check . \"!package-lock.json\""
   },
   "keywords": [
     "service-desk",

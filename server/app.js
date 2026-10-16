@@ -11,7 +11,6 @@ import authRoutes from "./routes/auth.js";
 import tenantRoutes from "./routes/tenants.js";
 import adminRoutes from "./routes/admin.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
-import rulesRoutes from "./routes/rules.js";
 
 // Stop with a clear message if the environment variables are missing
 for (const name of ["MONGODB_URI", "SESSION_SECRET"]) {
@@ -47,7 +46,6 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/tenants", requireAuth, tenantRoutes);
 app.use("/api/v1/admin", requireAuth, requireRole("superior"), adminRoutes);
 app.use("/api/v1/api-keys", requireAuth, requireRole("superior"), apiKeyRoutes);
-app.use("/api/v1/rules", requireAuth, rulesRoutes);
 
 // Emily's ticket routes go here, for example:
 //   import apiKeyAuth from "./middleware/apiKeyAuth.js";

@@ -15,7 +15,6 @@ const INDEXES = [
   ["tenants", { slug: 1 }, { unique: true }],
   ["users", { tenantId: 1, email: 1 }, { unique: true }],
   ["apikeys", { keyHash: 1 }, { unique: true }],
-  ["rules", { tenantId: 1, ruleName: 1 }, { unique: true }],
   ["shareCodes", { code: 1 }, { unique: true }],
   ["shareCodes", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
 ];

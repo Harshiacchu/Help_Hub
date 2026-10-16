@@ -1,7 +1,7 @@
 // server/scripts/seed.js - Demo data for the dashboard, video and grading
 //
-// Creates 3 demo companies with 1,200+ users, default rules, invite codes and
-// an API key each (over 1,000 records in total).
+// Creates 3 demo companies with 1,200+ users, invite codes and an API key
+// each (over 1,000 records in total).
 // Run: npm run seed
 // Safe to re-run: it only deletes and recreates the three *-demo companies.
 
@@ -11,9 +11,8 @@ import bcrypt from "bcryptjs";
 import { connectDB, getDB, closeDB } from "../config/db.js";
 import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
-import RulesModel from "../models/rules.js";
 import ApiKeyModel from "../models/apiKey.js";
-import { savePromptFiles } from "../services/prompts.js";
+import { linkPromptFiles } from "../services/prompts.js";
 
 const DEMO_PASSWORD = "Password123";
 
@@ -24,7 +23,6 @@ const COMPANIES = [
     domain: "acme.example",
     agents: 8,
     customers: 400,
-    categories: ["Billing", "Technical Support", "Shipping", "Returns"],
   },
   {
     name: "Globex Inc",
@@ -32,7 +30,6 @@ const COMPANIES = [
     domain: "globex.example",
     agents: 6,
     customers: 400,
-    categories: ["Account Access", "Bug Report", "Feature Request"],
   },
   {
     name: "Initech",
@@ -40,7 +37,6 @@ const COMPANIES = [
     domain: "initech.example",
     agents: 5,
     customers: 400,
-    categories: ["Hardware", "Software", "Network", "General"],
   },
 ];
 
@@ -107,7 +103,7 @@ async function removeDemoCompany(db, slug) {
   if (!tenant) return;
   const byTenant = { tenantId: tenant._id };
   await Promise.all(
-    ["users", "rules", "apikeys", "shareCodes"].map((name) =>
+    ["users", "apikeys", "shareCodes"].map((name) =>
       db.collection(name).deleteMany(byTenant)
     )
   );
@@ -116,7 +112,6 @@ async function removeDemoCompany(db, slug) {
 
 async function seedCompany(db, company, passwordHash) {
   const tenantModel = new TenantModel(db);
-  const rulesModel = new RulesModel(db);
   const apiKeyModel = new ApiKeyModel(db);
 
   const tenant = await tenantModel.create({
@@ -124,8 +119,6 @@ async function seedCompany(db, company, passwordHash) {
     slug: company.slug,
     supportEmailAlias: `support@${company.domain}`,
   });
-  await rulesModel.initializeDefaults(tenant._id);
-  await rulesModel.setCategories(tenant._id, company.categories);
 
   const user = (role, name, email) =>
     UserModel.newDocument({
@@ -176,11 +169,11 @@ async function seed() {
     });
   }
 
-  // Store each demo company's prompt file (server/prompts/<slug>.md) in its record
-  const prompts = await savePromptFiles(db);
+  // Link each demo company to its prompt file (server/prompts/<slug>.md), if any
+  const prompts = await linkPromptFiles(db);
 
   const counts = {};
-  for (const name of ["tenants", "users", "rules", "apikeys", "shareCodes"]) {
+  for (const name of ["tenants", "users", "apikeys", "shareCodes"]) {
     counts[name] = await db.collection(name).countDocuments();
   }
   const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
@@ -188,9 +181,9 @@ async function seed() {
   console.log("\nSeed complete. Records per collection:", counts);
   console.log(`Total records in these collections: ${total}\n`);
   console.log(
-    `AI prompts stored for: ${
+    `AI prompt files linked for: ${
       prompts
-        .filter((p) => p.saved)
+        .filter((p) => p.linked)
         .map((p) => p.slug)
         .join(", ") || "none"
     }`

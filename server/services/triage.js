@@ -1,38 +1,37 @@
 // server/services/triage.js - AI ticket triage (Groq)
 //
-// Same code for every company. Each company's prompt is stored in its record
-// (loaded from server/prompts/<company-slug>.md by `npm run prompts`);
-// companies without one use server/prompts/default.md. The AI picks a category
-// and priority from that company's own lists; anything else gets the defaults.
+// Same code for every company. All of a company's rules - its categories, what
+// each priority means and the SLA hours for each priority - are written in its
+// prompt file (the company record stores only the file name; see prompts.js).
+// Companies without a file use server/prompts/default.md.
 //
-// .env: GROQ_API_KEY and GROQ_MODEL. Without them, tickets get the defaults.
+// .env: GROQ_API_KEY and GROQ_MODEL. Without them, or if the AI fails, tickets
+// get the defaults: category "General", priority 3 and an 8-hour SLA.
 //
 // Ticket creation (Emily):
 //   import { triageTicket } from "../services/triage.js";
 //   const result = await triageTicket(getDB(), { tenantId: req.tenantId, title, description });
 //   ticket.category = result.category;
-//   ticket.priority = result.priority;
+//   ticket.priority = result.priority; // 1 (most urgent) to 5
 //   ticket.slaDueAt = result.slaDueAt;
 //   ticket.triage = result.triage; // { source: "ai" | "default", reason }
 
 import TenantModel from "../models/tenant.js";
-import RulesModel from "../models/rules.js";
-import { readDefaultPrompt } from "./prompts.js";
+import { readPrompt } from "./prompts.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const DEFAULT_PRIORITY = 3;
 const HOUR_MS = 60 * 60 * 1000;
+const DEFAULT_CATEGORY = "General";
+const DEFAULT_PRIORITY = 3;
+// Used when the AI gives no valid SLA: hours for priorities 1 to 5
+const DEFAULT_SLA_HOURS = { 1: 2, 2: 4, 3: 8, 4: 24, 5: 48 };
 
-/** Asks Groq for { category, priority, reason }. */
-async function askGroq(tenant, prompt, categories, labels, title, description) {
+/** Asks Groq to apply the company's rules: { category, priority, slaHours, reason }. */
+async function askGroq(tenant, rules, title, description) {
   const instructions = [
-    `You triage customer support tickets for ${tenant.name}.`,
-    prompt,
-    `Categories: ${categories.join(", ")}`,
-    `Priorities (1 is the most urgent): ${[1, 2, 3, 4, 5]
-      .map((level) => `${level} = ${labels[level]}`)
-      .join(", ")}`,
-    'Reply with only JSON: {"category": "<one of the categories>", "priority": <1-5>, "reason": "<one short sentence>"}',
+    `You triage customer support tickets for ${tenant.name}. Follow the company's rules:`,
+    rules,
+    'Reply with only JSON: {"category": "<category from the rules>", "priority": <1-5, 1 is the most urgent>, "slaHours": <hours from the rules for that priority>, "reason": "<one short sentence>"}',
   ].join("\n");
 
   const response = await fetch(GROQ_URL, {
@@ -64,33 +63,29 @@ async function triageTicket(
   db,
   { tenantId, title, description, createdAt = new Date() }
 ) {
-  const rules = new RulesModel(db);
-  const [tenant, categories, labels] = await Promise.all([
-    new TenantModel(db).findById(tenantId),
-    rules.getCategories(tenantId),
-    rules.getPriorityLabels(tenantId),
-  ]);
-
-  let category = categories.includes("General") ? "General" : categories[0];
+  let category = DEFAULT_CATEGORY;
   let priority = DEFAULT_PRIORITY;
+  let slaHours = DEFAULT_SLA_HOURS[DEFAULT_PRIORITY];
   let reason = null;
   let source = "default";
 
   if (process.env.GROQ_API_KEY && process.env.GROQ_MODEL) {
     try {
-      const prompt = tenant.triagePrompt || (await readDefaultPrompt());
-      const reply = await askGroq(
-        tenant,
-        prompt,
-        categories,
-        labels,
-        title,
-        description
-      );
-      if (categories.includes(reply.category)) category = reply.category;
+      const tenant = await new TenantModel(db).findById(tenantId);
+      const rules = await readPrompt(tenant.promptFile);
+      const reply = await askGroq(tenant, rules, title, description);
+
+      if (typeof reply.category === "string" && reply.category.trim()) {
+        category = reply.category.trim().slice(0, 50);
+      }
       if ([1, 2, 3, 4, 5].includes(Number(reply.priority))) {
         priority = Number(reply.priority);
       }
+      const hours = Number(reply.slaHours);
+      slaHours =
+        Number.isInteger(hours) && hours >= 1 && hours <= 168
+          ? hours
+          : DEFAULT_SLA_HOURS[priority];
       reason = reply.reason || null;
       source = "ai";
     } catch (error) {
@@ -98,7 +93,6 @@ async function triageTicket(
     }
   }
 
-  const slaHours = await rules.getSlaHoursForPriority(tenantId, priority);
   return {
     category,
     priority,

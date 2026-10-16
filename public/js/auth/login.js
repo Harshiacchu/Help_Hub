@@ -8,7 +8,6 @@ const ROLE_HOME = {
   agent: "/pages/agent-queue.html", // Emily's page
   customer: "/pages/my-tickets.html", // Emily's page
 };
-const LAST_ORG_KEY = "helphub.lastOrg";
 
 const form = document.getElementById("loginForm");
 const alertContainer = document.getElementById("alertContainer");
@@ -29,26 +28,8 @@ async function goHome(role) {
   if (page && (await pageExists(page))) window.location.href = page;
 }
 
-function readSavedOrganization() {
-  try {
-    return localStorage.getItem(LAST_ORG_KEY);
-  } catch {
-    return null; // storage can be blocked by the browser
-  }
-}
-
-function saveOrganization(slug) {
-  try {
-    localStorage.setItem(LAST_ORG_KEY, slug);
-  } catch {
-    // not critical - the user just types the organization next time
-  }
-}
-
-// Prefill organization from ?org=... (after registering) or from the last login
-const org =
-  new URLSearchParams(window.location.search).get("org") ||
-  readSavedOrganization();
+// Prefill the organization when arriving from registration (?org=...)
+const org = new URLSearchParams(window.location.search).get("org");
 if (org) {
   document.getElementById("tenantSlug").value = org;
   document.getElementById("email").focus();
@@ -78,7 +59,6 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       body: credentials,
     });
-    saveOrganization(result.user.tenantSlug);
     const home = ROLE_HOME[result.user.role];
     if (home && (await pageExists(home))) {
       showAlert("Login successful! Redirecting...", "success", alertContainer);

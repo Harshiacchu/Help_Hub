@@ -17,9 +17,3 @@
   border-color: var(--color-primary);
   box-shadow: 0 0 0 0.2rem var(--color-focus-ring);
 }
-
-.form-check-label {
-  cursor: pointer;
-  user-select: none;
-  font-size: 0.9rem;
-}

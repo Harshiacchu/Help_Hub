@@ -1,6 +1,6 @@
 // server/routes/auth.js - Registration, login, logout and the current user
 //
-// POST /api/v1/auth/register-tenant   { name, slug, supportEmailAlias, slaTargets }
+// POST /api/v1/auth/register-tenant   { name, slug, supportEmailAlias }
 // POST /api/v1/auth/register          { shareCode, name, email, password }
 // POST /api/v1/auth/login             { tenantSlug, email, password }
 // POST /api/v1/auth/logout
@@ -13,14 +13,12 @@ import { getDB, isDuplicateKeyError } from "../config/db.js";
 import { requireAuth, asyncHandler } from "../middleware/auth.js";
 import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
-import RulesModel from "../models/rules.js";
 import {
   ValidationError,
   assertEmail,
   assertPassword,
   assertSlug,
   cleanText,
-  validateSlaTargets,
 } from "../utils/validators.js";
 
 const router = express.Router();
@@ -36,9 +34,6 @@ router.post(
       req.body.supportEmailAlias,
       "Support email"
     );
-    const slaTargets = req.body.slaTargets
-      ? validateSlaTargets(req.body.slaTargets)
-      : undefined;
 
     const db = getDB();
     const tenants = new TenantModel(db);
@@ -52,7 +47,6 @@ router.post(
       throw error;
     }
 
-    await new RulesModel(db).initializeDefaults(tenant._id, { slaTargets });
     // The first share code makes the person registering the company its admin
     const shareCode = await tenants.createShareCode(tenant._id, "superior");
 

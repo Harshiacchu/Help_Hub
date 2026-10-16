@@ -1,5 +1,5 @@
 // server/routes/tenants.js - Tenant details, invites and team management
-// Mounted in index.js behind requireAuth, so req.user / req.tenantId always exist.
+// Mounted in server/app.js behind requireAuth, so req.user / req.tenantId always exist.
 //
 // Specific paths are registered BEFORE "/:tenantId", otherwise Express would
 // treat "share-codes" or "agents" as a tenant id.

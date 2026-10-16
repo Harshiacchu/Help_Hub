@@ -8,7 +8,7 @@
 //   req.user     = { id, tenantId, role, email, name }
 //   req.tenantId = the logged-in user's tenant (from the session, never from the request)
 
-/** req.user is filled in by tenantResolution, which index.js runs on every request. */
+/** req.user is filled in by tenantResolution, which server/app.js runs on every request. */
 function requireAuth(req, res, next) {
   if (!req.user) {
     return res.status(401).json({

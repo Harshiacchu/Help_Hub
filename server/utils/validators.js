@@ -1,5 +1,5 @@
 // server/utils/validators.js - Shared validation helpers
-// One source of truth for roles, SLA levels and input rules, so routes and
+// One source of truth for roles and input rules, so routes and
 // models never disagree about what "valid" means.
 
 class ValidationError extends Error {
@@ -14,24 +14,6 @@ class ValidationError extends Error {
 const ROLES = ["customer", "agent", "superior"];
 const STAFF_ROLES = ["agent", "superior"];
 const USER_STATUSES = ["active", "inactive", "deleted"];
-
-const SLA_LEVELS = ["critical", "high", "medium", "low", "minimal"];
-const PRIORITY_TO_SLA_LEVEL = {
-  1: "critical",
-  2: "high",
-  3: "medium",
-  4: "low",
-  5: "minimal",
-};
-const SLA_MIN_HOURS = 1;
-const SLA_MAX_HOURS = 168; // one week
-const DEFAULT_SLA_TARGETS = Object.freeze({
-  critical: 2,
-  high: 4,
-  medium: 8,
-  low: 24,
-  minimal: 48,
-});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -103,35 +85,6 @@ function assertRole(role, allowed = ROLES) {
   return role;
 }
 
-/**
- * Validates SLA targets and returns a clean { critical, high, medium, low, minimal }
- * object of whole hours. Accepts numbers or numeric strings (form inputs).
- */
-function validateSlaTargets(input) {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new ValidationError(
-      "SLA targets must be an object with critical, high, medium, low and minimal hours"
-    );
-  }
-  const result = {};
-  for (const level of SLA_LEVELS) {
-    const raw = input[level];
-    const hours =
-      typeof raw === "string" && raw.trim() !== "" ? Number(raw) : raw;
-    if (
-      !Number.isInteger(hours) ||
-      hours < SLA_MIN_HOURS ||
-      hours > SLA_MAX_HOURS
-    ) {
-      throw new ValidationError(
-        `SLA target for "${level}" must be a whole number between ${SLA_MIN_HOURS} and ${SLA_MAX_HOURS} hours`
-      );
-    }
-    result[level] = hours;
-  }
-  return result;
-}
-
 function assertPriority(value) {
   const priority = Number(value);
   if (!Number.isInteger(priority) || priority < 1 || priority > 5) {
@@ -162,15 +115,12 @@ export {
   ROLES,
   STAFF_ROLES,
   USER_STATUSES,
-  PRIORITY_TO_SLA_LEVEL,
-  DEFAULT_SLA_TARGETS,
   normalizeEmail,
   assertEmail,
   assertPassword,
   assertSlug,
   cleanText,
   assertRole,
-  validateSlaTargets,
   assertPriority,
   parseDateParam,
 };

@@ -9,7 +9,6 @@
 // All dates are grouped in UTC.
 
 import { mustObjectId } from "../config/db.js";
-import RulesModel from "../models/rules.js";
 import {
   assertPriority,
   parseDateParam,
@@ -19,6 +18,13 @@ import {
 const HOUR_MS = 60 * 60 * 1000;
 const EXPORT_ROW_LIMIT = 10000;
 const CLOSED_STATUSES = ["resolved", "closed"];
+const PRIORITY_LABELS = {
+  1: "Critical",
+  2: "High",
+  3: "Medium",
+  4: "Low",
+  5: "Minimal",
+};
 
 const round1 = (n) =>
   typeof n === "number" && Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
@@ -34,7 +40,6 @@ class AnalyticsController {
   constructor(db) {
     this.tickets = db.collection("tickets");
     this.users = db.collection("users");
-    this.rules = new RulesModel(db);
   }
 
   /** Validates query params into a Mongo match stage (always tenant-scoped). */
@@ -102,7 +107,7 @@ class AnalyticsController {
     const match = this.buildMatch(tenantId);
     const [labels, facetResult, avgResponseTime, agentWorkload] =
       await Promise.all([
-        this.rules.getPriorityLabels(tenantId),
+        PRIORITY_LABELS,
         this.tickets
           .aggregate([
             { $match: match },
@@ -154,6 +159,12 @@ class AnalyticsController {
     }
 
     const totalTickets = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+    // The categories this company's tickets use (fills the analytics filter)
+    const categories = (
+      await this.tickets.distinct("category", { tenantId: match.tenantId })
+    )
+      .filter(Boolean)
+      .sort();
 
     return {
       totalTickets,
@@ -178,6 +189,7 @@ class AnalyticsController {
         category: c._id,
         count: c.count,
       })),
+      categories,
     };
   }
 
@@ -194,10 +206,10 @@ class AnalyticsController {
     return msToHours(row && row.avgMs);
   }
 
-  /** { Critical: %, High: %, ... } using this company's labels. */
+  /** { Critical: %, High: %, ... } */
   async getSLAByPriority(tenantId, filters = {}) {
     const [labels, rows] = await Promise.all([
-      this.rules.getPriorityLabels(tenantId),
+      PRIORITY_LABELS,
       this.tickets
         .aggregate([
           { $match: this.buildMatch(tenantId, filters) },
@@ -401,7 +413,7 @@ class AnalyticsController {
   async exportTicketsCsv(tenantId, filters = {}) {
     const match = this.buildMatch(tenantId, filters);
     const [labels, tickets, staff] = await Promise.all([
-      this.rules.getPriorityLabels(tenantId),
+      PRIORITY_LABELS,
       this.tickets
         .find(match)
         .project({
