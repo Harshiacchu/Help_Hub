@@ -23,6 +23,9 @@ async function requireCustomer() {
   return null;
 }
 
+const formatDate = (value) =>
+  new Date(value).toLocaleDateString("en-US", { month: "numeric", day: "2-digit", year: "2-digit" });
+
 // Builds a ticket card using textContent
 function buildTicketCard(ticket) {
   const card = document.createElement("div");
@@ -33,7 +36,7 @@ function buildTicketCard(ticket) {
   const id = document.createElement("p");
   id.textContent = `Ticket #${ticket.ticketId}`;
   const date = document.createElement("p");
-  date.textContent = `Opened on: ${ticket.openedAt}`;
+  date.textContent = `Opened on: ${formatDate(ticket.openedAt)}`;
   header.append(id, date);
 
   const status = document.createElement("p");

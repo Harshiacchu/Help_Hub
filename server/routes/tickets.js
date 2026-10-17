@@ -5,6 +5,7 @@
 
 import express from "express";
 import { requireRole, asyncHandler } from "../middleware/auth.js";
+import { getDB } from "../config/db.js";
 import TicketModel from "../models/tickets.js";
 
 const router = express.Router();
@@ -13,7 +14,10 @@ router.get(
   "/mine",
   requireRole("customer"),
   asyncHandler(async (req, res) => {
-    const data = await new TicketModel().findByCustomer(req.user.customerId);
+    const data = await new TicketModel(getDB()).findByCustomer(
+      req.tenantId,
+      req.user.customerId
+    );
     res.json({ success: true, data });
   })
 );

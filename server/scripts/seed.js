@@ -13,9 +13,27 @@ import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
 import RulesModel from "../models/rules.js";
 import ApiKeyModel from "../models/apiKey.js";
+import TicketModel from "../models/tickets.js";
 import { savePromptFiles } from "../services/prompts.js";
 
 const DEMO_PASSWORD = "Password123";
+
+const STATUSES = ["Opened", "InProgress", "Completed", "Closed"];
+const DONE_STATUSES = ["Completed", "Closed"];
+const PRIORITIES = ["Low", "Medium", "High"];
+const DESCRIPTIONS = [
+  "I was charged twice this month.",
+  "The checkout page shows an error when I pay.",
+  "I can't log in to my account.",
+  "The app freezes when I open several tabs.",
+  "I need a copy of my receipt.",
+  "My order hasn't arrived yet.",
+];
+const MAX_TICKETS_PER_CUSTOMER = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
 
 const COMPANIES = [
   {
@@ -107,11 +125,47 @@ async function removeDemoCompany(db, slug) {
   if (!tenant) return;
   const byTenant = { tenantId: tenant._id };
   await Promise.all(
-    ["users", "rules", "apikeys", "shareCodes"].map((name) =>
+    ["users", "rules", "apikeys", "shareCodes", "tickets"].map((name) =>
       db.collection(name).deleteMany(byTenant)
     )
   );
   await db.collection("tenants").deleteOne({ _id: tenant._id });
+}
+
+//Create tickets
+function buildTickets(tenantId, company, users) {
+  const agentIds = users.filter((u) => u.role === "agent").map((u) => u._id);
+  const customers = users.filter((u) => u.role === "customer");
+  const tickets = []; 
+  let ticketId = 1;
+
+  for(const customer of customers) {
+    const count = Math.floor(Math.random() * (MAX_TICKETS_PER_CUSTOMER + 1));
+    for(let i=0; i < count; i++){
+      const status = pick(STATUSES);
+      const openedAt = new Date(Date.now() - (4 + Math.random() * 176) * DAY_MS);
+      const closedAt = DONE_STATUSES.includes(status)
+        ? new Date(openedAt.getTime() + (1 + Math.random() * 71) * 60 * 60 * 1000)
+        : null;
+      
+      tickets.push(
+        TicketModel.newDocument({
+          tenantId,
+          customerId: customer.customerId,
+          ticketId: ticketId++,
+          agentId: pick(agentIds),
+          status,
+          priority: pick(PRIORITIES),
+          category: pick(company.categories),
+          description: pick(DESCRIPTIONS),
+          openedAt,
+          closedAt
+        })
+      );
+    }
+  }
+  return tickets;
+
 }
 
 async function seedCompany(db, company, passwordHash) {
@@ -157,11 +211,15 @@ async function seedCompany(db, company, passwordHash) {
   // One round trip for all users instead of 500+ separate inserts
   await db.collection("users").insertMany(users, { ordered: false });
 
+  //Insert all tickets
+  const tickets = buildTickets(tenant._id, company, users);
+  await new TicketModel(db).insertMany(tickets);
+
   await tenantModel.createShareCode(tenant._id, "agent");
   await tenantModel.createShareCode(tenant._id, "customer");
   const { key } = await apiKeyModel.create(tenant._id, "Order System");
 
-  return { users: users.length, apiKey: key };
+  return { users: users.length, tickets: tickets.length, apiKey: key };
 }
 
 async function seed() {
