@@ -28,6 +28,7 @@ class UserModel {
       email: user.email,
       name: user.name,
       role: user.role,
+      customerId: user.customerId ?? null,
       status: user.status,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
@@ -35,7 +36,14 @@ class UserModel {
   }
 
   /** Builds a new user document (also used by the seed script). */
-  static newDocument({ tenantId, email, passwordHash, name, role }) {
+  static newDocument({
+    tenantId,
+    email,
+    passwordHash,
+    name,
+    role,
+    customerId = null,
+  }) {
     if (!ROLES.includes(role)) throw new ValidationError("Invalid role");
     return {
       tenantId: mustObjectId(tenantId, "tenant id"),
@@ -43,6 +51,7 @@ class UserModel {
       passwordHash,
       name,
       role,
+      customerId, // numeric id that links a customer to their tickets (null for staff)
       status: "active",
       createdAt: new Date(),
       lastLogin: null,
@@ -58,9 +67,26 @@ class UserModel {
 
   /** Throws a duplicate-key error (code 11000) if the email is already used in this company. */
   async create(fields) {
-    const user = UserModel.newDocument(fields);
+    const customerId =
+      fields.role === "customer" && fields.customerId == null
+        ? await this.nextCustomerId(fields.tenantId)
+        : fields.customerId;
+    const user = UserModel.newDocument({ ...fields, customerId });
     const result = await this.collection.insertOne(user);
     return UserModel.toPublic({ ...user, _id: result.insertedId });
+  }
+
+  /** Next free numeric customerId in this company (highest existing + 1). */
+  async nextCustomerId(tenantId) {
+    const [last] = await this.collection
+      .find({
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        customerId: { $type: "number" },
+      })
+      .sort({ customerId: -1 })
+      .limit(1)
+      .toArray();
+    return last ? last.customerId + 1 : 1;
   }
 
   /** Includes the password hash - only for login. */

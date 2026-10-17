@@ -1,6 +1,6 @@
 // server/scripts/seed.js - Demo data for the dashboard, video and grading
 //
-// Creates 3 demo companies with 1,200+ users, default rules, invite codes and
+// Creates 3 demo companies with 1,500+ users, default rules, invite codes and
 // an API key each (over 1,000 records in total).
 // Run: npm run seed
 // Safe to re-run: it only deletes and recreates the three *-demo companies.
@@ -23,7 +23,7 @@ const COMPANIES = [
     slug: "acme-demo",
     domain: "acme.example",
     agents: 8,
-    customers: 400,
+    customers: 500,
     categories: ["Billing", "Technical Support", "Shipping", "Returns"],
   },
   {
@@ -31,7 +31,7 @@ const COMPANIES = [
     slug: "globex-demo",
     domain: "globex.example",
     agents: 6,
-    customers: 400,
+    customers: 500,
     categories: ["Account Access", "Bug Report", "Feature Request"],
   },
   {
@@ -39,7 +39,7 @@ const COMPANIES = [
     slug: "initech-demo",
     domain: "initech.example",
     agents: 5,
-    customers: 400,
+    customers: 500,
     categories: ["Hardware", "Software", "Network", "General"],
   },
 ];
@@ -127,13 +127,14 @@ async function seedCompany(db, company, passwordHash) {
   await rulesModel.initializeDefaults(tenant._id);
   await rulesModel.setCategories(tenant._id, company.categories);
 
-  const user = (role, name, email) =>
+  const user = (role, name, email, customerId = null) =>
     UserModel.newDocument({
       tenantId: tenant._id,
       email,
       passwordHash,
       name,
       role,
+      customerId,
     });
 
   const users = [user("superior", "Demo Admin", `admin@${company.domain}`)];
@@ -150,9 +151,10 @@ async function seedCompany(db, company, passwordHash) {
   for (let i = 0; i < company.customers; i++) {
     const { full, first, last } = demoName(i);
     const email = `${first}.${last}.${i + 1}@customer.example`.toLowerCase();
-    users.push(user("customer", full, email));
+    // customerId 1..N matches the customerId values in data/Mock_Tickets_1.json
+    users.push(user("customer", full, email, i + 1));
   }
-  // One round trip for all users instead of 400+ separate inserts
+  // One round trip for all users instead of 500+ separate inserts
   await db.collection("users").insertMany(users, { ordered: false });
 
   await tenantModel.createShareCode(tenant._id, "agent");

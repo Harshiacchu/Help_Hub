@@ -11,17 +11,34 @@
 
 /*
 customerId
-phoneNumber
-email
-fName
-lName
-ticketId
+ticketId : unique
 agentId
 tenantId
 status
 openedAt
-closedAt
+closedAt : must be after openedAt
 priority
 description
 category
 */
+
+import { readFile } from "node:fs/promises";
+
+const MOCK_TICKETS_PATH = new URL("../../data/Mock_Tickets_1.json", import.meta.url);
+
+class TicketModel {
+  // Reads the mock data for now; swap this for a db.collection("tickets") query later.
+  async loadAll() {
+    return JSON.parse(await readFile(MOCK_TICKETS_PATH, "utf8"));
+  }
+
+  /** One customer's tickets, newest first. */
+  async findByCustomer(customerId) {
+    const id = Number(customerId);
+    if (!Number.isInteger(id)) return [];
+    const tickets = (await this.loadAll()).filter((t) => t.customerId === id);
+    return tickets.sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt));
+  }
+}
+
+export default TicketModel;
