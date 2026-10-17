@@ -1,6 +1,32 @@
 .box {
-    background-color: rgb(194, 194, 255);
+    background-color: rgb(212, 212, 255);
     border-radius: 10px;
     margin: 20px;
-    height: 100%;
+    height: 40rem;
+    padding: 10px;
+    text-align: center;
+}
+
+.ticket-header {
+    display: flex;  
+}
+
+#ticket-id {
+    text-align: left;
+}
+
+#ticket-date {
+    text-align: right;
+}
+
+.ticket {
+    background-color: rgb(154, 141, 217);
+    border-radius: 15px;
+    height:8rem;
+    margin:10px;
+    padding: 10px;
+    text-align:left;
+    line-height: 0.5;
+
+    
 }
