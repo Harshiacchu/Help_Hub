@@ -24,6 +24,23 @@ router.get(
   })
 );
 
+//Get a specific ticket belonging to a customer
+router.get(
+  "/:ticketId",
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const ticket = await new TicketModel(getDB()).findTicketForCustomer(
+      req.user.customerId,
+      req.params.ticketId,
+      req.tenantId
+    );
+    if (!ticket) {
+      throw new ValidationError("Ticket not found", 404);
+    }
+    res.json({ success: true, data: ticket });
+  })
+);
+
 //put a new ticket into the database
 router.post(
   "/",

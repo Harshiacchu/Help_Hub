@@ -76,6 +76,18 @@ class TicketModel {
         .toArray();
   }
 
+  //Looks for a customer's ticket given ticket id, customer id, and tenant id
+  async findTicketForCustomer(customerId, ticketId, tenantId) {
+    const customer = Number(customerId);
+    const ticket = Number(ticketId);
+    if(!Number.isInteger(customer) || !Number.isInteger(ticket)) return null;
+    return this.collection.findOne({
+      tenantId: mustObjectId(tenantId, "tenant id"),
+      customerId: customer,
+      ticketId: ticket,
+    });
+  }
+
   //Gets the next available ticketId number for the given tenant
   async nextTicketId(tenantId) {
     const [last] = await this.collection

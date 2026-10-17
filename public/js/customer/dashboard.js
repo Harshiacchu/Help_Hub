@@ -37,8 +37,9 @@ const formatDate = (value) =>
 
 // Builds a ticket card using textContent
 function buildTicketCard(ticket) {
-  const card = document.createElement("div");
+  const card = document.createElement("a");
   card.className = "ticket";
+  card.href = `/pages/customer-ticket-view.html?id=${ticket.ticketId}`;
 
   const header = document.createElement("div");
   header.className = "ticket-header";
