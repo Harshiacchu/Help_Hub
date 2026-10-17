@@ -3,6 +3,7 @@ import { requestJson } from "../common/api.js";
 const createTicketBtn = document.querySelector("#new-ticket-btn");
 const inProgressBox = document.querySelector("#in-progress-box");
 const completedBox = document.querySelector("#completed-box");
+const logoutBtn = document.querySelector("#logout-btn");
 
 const LOGIN_PAGE = "/pages/login.html";
 const ROLE_HOME = {
@@ -59,6 +60,20 @@ function createTicket() {
   newTicket.textContent = "Ticket 3";
   inProgressBox.appendChild(newTicket);
 }
+
+//Logout Button clears session and sets page to Login page
+logoutBtn.addEventListener("click", async () => {
+  logoutBtn.disabled = true;
+  try {
+    await requestJson("/api/v1/auth/logout", { method: "POST" });
+  } catch {
+    //
+  } finally {
+    window.location.href = "/pages/login.html";
+  }
+});
+
+
 
 // Replaces a box's cards with the given tickets, or a short message if none
 function fillBox(box, tickets, emptyText) {
