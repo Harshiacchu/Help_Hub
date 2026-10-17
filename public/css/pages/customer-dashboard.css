@@ -1,14 +1,22 @@
+body {
+    background-color: rgb(236, 239, 242);
+}
+h2 {
+    font-size: medium;
+}
 .box {
-    background-color: rgb(212, 212, 255);
+    background-color: rgb(253, 253, 253);
     border-radius: 10px;
     margin: 20px;
     height: 40rem;
     padding: 10px;
     text-align: center;
+    box-shadow: 0px 0px 15px 3px rgb(221, 220, 224);
 }
 
 .ticket-header {
     display: flex;  
+    justify-content: space-between;
 }
 
 #ticket-id {
@@ -20,13 +28,13 @@
 }
 
 .ticket {
-    background-color: rgb(154, 141, 217);
-    border-radius: 15px;
+    background-color: rgb(243, 241, 255);
+    border: 1px solid rgb(226, 219, 235);
+    border-radius: 5px;
     height:8rem;
     margin:10px;
     padding: 10px;
     text-align:left;
-    line-height: 0.5;
-
+    line-height: 1;
     
 }
