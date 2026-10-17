@@ -9,14 +9,17 @@
       rel="stylesheet"
       integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
       crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pages/customer-ticket-view.css">
 </head>
 <body>
     <header>
-        <div class="container"> 
-            <h1 id="ticket-title">Viewing Ticket #000</h1>    
-            <label id="ticket-company">Issued to: COMPANY NAME</label>
+        <div class="container" id="ticket-view-header"> 
+            <a class="btn btn-outline-secondary" href="/pages/customer-dashboard.html">Back to Dashboard</a>
+            <div class="container">
+                <h1 id="ticket-title">Viewing Ticket #000</h1>    
+                <label id="ticket-company">Issued to: COMPANY NAME</label>
+            </div>
             <button class="btn btn-outline-secondary" id="logout-btn">Log Out</button>
-            <button class="btn btn-outline-secondary" id="dashboard-btn">Back to Dashboard</button>
         </div>
     </header>
     <hr>
@@ -32,12 +35,16 @@
                 stage
             </div>
         </div>
+        <div class="space"></div>
         <div class="row">
             <div class="col">
-                <label>Issue desciption:</label>
-                <p id="ticket-description">DESCRIPTION .......</p>
+                <div class="info-box">
+                    <label>Issue desciption:</label>
+                    <p id="ticket-description">DESCRIPTION .......</p>
+                </div>
             </div>
         </div>
+        <div class="space"></div>
         <div class="row">
             <div class="box" id="comment-container">
                 NOTES FROM AGENT

@@ -1,0 +1,33 @@
+body {
+  background-color: #f5f5f5;
+}
+
+.space {
+    margin-bottom: 2rem;
+}
+
+#ticket-view-header {
+    display: flex;  
+    flex-direction: row;
+    padding: 10px;
+    gap: 2rem;
+}
+
+.box {
+    background-color: rgb(253, 253, 253);
+    border-radius: 5px;
+    margin: 20px;
+    height: 20rem;
+    padding: 15px;
+    text-align: left;
+    box-shadow: 0px 0px 15px 3px rgb(221, 220, 224);
+}
+
+.info-box {
+    background-color:  #e9eaf4;
+    border: 1px solid rgb(203, 203, 204);
+    border-radius: 5px;
+    padding: 15px;
+    text-align: left;
+
+}
