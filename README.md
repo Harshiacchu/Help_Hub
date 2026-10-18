@@ -83,16 +83,16 @@ MongoDB with the native driver (no Mongoose). Each model file in `server/models/
 
 ## Tech Stack
 
-| Layer      | Technologies                                         |
-| ---------- | ---------------------------------------------------- |
-| Markup     | HTML5                                                |
-| Styling    | CSS3 (organized by modules), Bootstrap 5             |
+| Layer      | Technologies                                            |
+| ---------- | ------------------------------------------------------- |
+| Markup     | HTML5                                                   |
+| Styling    | CSS3 (organized by modules), Bootstrap 5                |
 | Scripting  | Vanilla JavaScript (ES6 modules), client-side rendering |
-| Backend    | Node.js, Express, cookie-session, bcryptjs           |
-| Database   | MongoDB Atlas with the native MongoDB driver         |
-| AI         | Groq API                                             |
-| Tooling    | ESLint, Prettier                                     |
-| Deployment | Vercel                                               |
+| Backend    | Node.js, Express, cookie-session, bcryptjs              |
+| Database   | MongoDB Atlas with the native MongoDB driver            |
+| AI         | Groq API                                                |
+| Tooling    | ESLint, Prettier                                        |
+| Deployment | Vercel                                                  |
 
 ## Project Structure
 
