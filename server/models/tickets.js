@@ -1,5 +1,5 @@
 //Tickets hold information about the tickets created by customers.
-//Each ticket is ascociated with a customer, an agent, and a tenant. The ticket has a status  (opened, in-progress, completed, waiting for customer input, and closed)
+//Each ticket is associated with a customer, an agent, and a tenant. The ticket has a status: Opened, InProgress, Completed or Closed
 //Timestamps are recored for when the ticketed is opened and closed.
 //Each ticket has a priority and a category. Both are chosen by the AI from the
 //company's prompt file, so each company can use its own priority labels.
@@ -122,6 +122,18 @@ class TicketModel {
       customerId: customer,
       ticketId: ticket,
     });
+  }
+
+  //Moves an Opened ticket to InProgress (when staff first reply to the customer).
+  async startTicket(tenantId, ticketId) {
+    await this.collection.updateOne(
+      {
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        ticketId: Number(ticketId),
+        status: "Opened",
+      },
+      { $set: { status: "InProgress" } }
+    );
   }
 
   //Marks an open ticket in a company as completed (done by an agent or superior).

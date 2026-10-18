@@ -14,6 +14,15 @@ let connecting = null; // shared, so requests arriving together open one connect
 const INDEXES = [
   ["tenants", { slug: 1 }, { unique: true }],
   ["users", { tenantId: 1, email: 1 }, { unique: true }],
+  // Each customer's numeric customerId is unique in their company (staff have none)
+  [
+    "users",
+    { tenantId: 1, customerId: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { customerId: { $type: "number" } },
+    },
+  ],
   ["apikeys", { keyHash: 1 }, { unique: true }],
   ["shareCodes", { code: 1 }, { unique: true }],
   ["shareCodes", { expiresAt: 1 }, { expireAfterSeconds: 0 }],

@@ -3,6 +3,7 @@ import { requestJson } from "../common/api.js";
 const title = document.querySelector("#ticket-title");
 const company = document.querySelector("#ticket-company");
 const description = document.querySelector("#ticket-description");
+const status = document.querySelector("#ticket-status");
 const commentContainer = document.querySelector("#comment-container");
 const commentForm = document.querySelector("#comment-form");
 const commentText = document.querySelector("#comment-text");
@@ -17,6 +18,14 @@ const closeModal = bootstrap.Modal.getOrCreateInstance(
 ); // `bootstrap` is global from the bundle script
 
 const DONE_STATUSES = ["Completed", "Closed"];
+
+// How each status is shown to the customer
+const STATUS_TEXT = {
+  Opened: "Opened - waiting for an agent",
+  InProgress: "In progress - an agent is working on it",
+  Completed: "Completed",
+  Closed: "Closed",
+};
 
 const DASHBOARD_PAGE = "/pages/customer-dashboard.html";
 const LOGIN_PAGE = "/pages/login.html";
@@ -62,6 +71,7 @@ async function loadTicketInfo() {
     title.textContent = `Viewing Ticket #${data.ticketId}`;
     company.textContent = `Issued to: ${customer.tenantName}`;
     description.textContent = `${data.description}`;
+    status.textContent = STATUS_TEXT[data.status] || data.status;
     closeBtn.hidden = DONE_STATUSES.includes(data.status); // nothing to close
   } catch (error) {
     closeBtn.hidden = true;
@@ -71,6 +81,7 @@ async function loadTicketInfo() {
         : `Could not load ticket: ${error.message}`;
     company.textContent = "";
     description.textContent = "";
+    status.textContent = "";
   }
 }
 
@@ -162,6 +173,19 @@ closeForm.addEventListener("submit", async (event) => {
     closeError.textContent = error.message;
   } finally {
     closeSubmit.disabled = false;
+  }
+});
+
+//Log Out button clears the session and returns to the login page
+const logoutBtn = document.querySelector("#logout-btn");
+logoutBtn.addEventListener("click", async () => {
+  logoutBtn.disabled = true;
+  try {
+    await requestJson("/api/v1/auth/logout", { method: "POST" });
+  } catch {
+    // leave the page either way
+  } finally {
+    window.location.href = LOGIN_PAGE;
   }
 });
 

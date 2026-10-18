@@ -158,6 +158,10 @@ router.post(
       // Only staff can post internal notes; a customer's value is ignored
       isInternal: req.user.role !== "customer" && req.body.isInternal === true,
     });
+    // A staff reply the customer can see starts work on an Opened ticket
+    if (req.user.role !== "customer" && !comment.isInternal) {
+      await new TicketModel(db).startTicket(req.tenantId, ticket.ticketId);
+    }
     res.status(201).json({ success: true, data: comment });
   })
 );

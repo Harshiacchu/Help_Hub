@@ -2,6 +2,16 @@
 //Queries are filtered by tenantId
 //Internal comments are for agents and superiors to read only
 
+/*
+tenantId
+ticketId   : the ticket's number in its company
+authorId   : the user who wrote it
+authorRole : customer, agent or superior
+body
+isInternal : true = a staff-only note the customer never sees
+createdAt
+*/
+
 import { mustObjectId } from "../config/db.js";
 import { ROLES, ValidationError, cleanText } from "../utils/validators.js";
 

@@ -30,22 +30,18 @@
               <span class="stat-number" id="stat-in-progress">0</span>
             </div>
             <div class="stat">
-              <span>Waiting on Customer</span>
-              <span class="stat-number" id="stat-waiting">0</span>
-            </div>
-            <div class="stat">
               <span>Closed</span>
               <span class="stat-number" id="stat-closed">0</span>
             </div>
 
             <h2 class="mt-4">Queues</h2>
             <nav class="queue-nav">
-              <a href="#" class="queue-link active" data-queue="mine"
-                >My Tickets</a
-              >
-              <a href="#" class="queue-link" data-queue="closed"
-                >Recently Closed</a
-              >
+              <button type="button" class="queue-link active" data-queue="mine">
+                My Tickets
+              </button>
+              <button type="button" class="queue-link" data-queue="closed">
+                Recently Closed
+              </button>
             </nav>
           </div>
         </div>
@@ -59,7 +55,7 @@
                   id="sort-priority-btn"
                   aria-pressed="false"
                 >
-                  Sort by Priority: High to Low
+                  Sort by Priority: Most Urgent First
                 </button>
                 <button
                   class="btn btn-sm btn-outline-secondary"
@@ -79,7 +75,7 @@
           <div class="box" id="stats-box">
             <h2>At a Glance</h2>
             <div class="stat">
-              <span>High Priority (not closed)</span>
+              <span>Top Priority (not closed)</span>
               <span class="stat-number" id="stat-high">0</span>
             </div>
             <div class="stat">

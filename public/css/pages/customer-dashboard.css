@@ -19,14 +19,6 @@ h2 {
   justify-content: space-between;
 }
 
-#ticket-id {
-  text-align: left;
-}
-
-#ticket-date {
-  text-align: right;
-}
-
 .ticket {
   background-color: rgb(243, 241, 255);
   border: 1px solid rgb(226, 219, 235);

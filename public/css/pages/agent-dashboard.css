@@ -41,8 +41,10 @@ h2 {
   border: 1px solid rgb(226, 219, 235);
   border-radius: 5px;
   color: inherit;
+  font: inherit;
   margin: 5px 0;
   padding: 10px;
+  text-align: left;
   text-decoration: none;
 }
 

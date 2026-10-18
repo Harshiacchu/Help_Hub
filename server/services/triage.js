@@ -61,6 +61,7 @@ async function triageTicket(db, { tenantId, description }) {
     try {
       const tenant = await new TenantModel(db).findById(tenantId);
       const rules = await readPrompt(tenant.promptFile);
+      if (!rules.trim()) throw new Error("no prompt file found");
       const reply = await askGroq(tenant, rules, description);
       category = label(reply.category) || category;
       priority = label(reply.priority) || priority;

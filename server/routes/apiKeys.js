@@ -3,8 +3,8 @@
 //
 // POST   /                 { name }  -> the full key is returned once
 // GET    /                 active keys (prefix only)
-// DELETE /:keyId           revoke
-// POST   /:keyId/rotate    revoke + issue a replacement with the same name
+// DELETE /:keyId           revoke (deletes the key)
+// POST   /:keyId/rotate    new secret for the same key (same name)
 
 import express from "express";
 import { getDB } from "../config/db.js";

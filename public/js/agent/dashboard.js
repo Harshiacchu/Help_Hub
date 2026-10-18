@@ -69,8 +69,6 @@ function showCounts(tickets) {
     tickets.filter((t) => statuses.includes(t.status)).length;
   document.querySelector("#stat-open").textContent = count("Opened");
   document.querySelector("#stat-in-progress").textContent = count("InProgress");
-  document.querySelector("#stat-waiting").textContent =
-    count("WaitingForCustomer");
   document.querySelector("#stat-closed").textContent = count(
     "Completed",
     "Closed"
@@ -93,7 +91,7 @@ function showStats(tickets) {
   );
 
   document.querySelector("#stat-high").textContent = notDone.filter(
-    (t) => t.priority === "High"
+    (t) => rankOf(t) === 0
   ).length;
   document.querySelector("#stat-opened-week").textContent = tickets.filter(
     (t) => withinWeek(t.openedAt)
@@ -124,7 +122,18 @@ const QUEUES = {
   },
 };
 
-const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2 };
+// Most urgent first, for the priority labels in the demo companies' prompt
+// files (Acme Corp and Cascade Health). Any other label sorts after these.
+const PRIORITY_RANK = {
+  High: 0,
+  Medium: 1,
+  Low: 3,
+  "Urgent Care Access": 0,
+  "Time-Sensitive": 1,
+  Standard: 2,
+  "General Inquiry": 4,
+};
+const rankOf = (ticket) => PRIORITY_RANK[ticket.priority] ?? 5;
 
 let allTickets = [];
 let currentQueue = "mine";
@@ -143,9 +152,7 @@ function showQueue(name) {
   let tickets = queue.pick(allTickets);
   if (sortMode === "priority") {
     // Array.sort is stable, so tickets with the same priority keep their order
-    // Labels a company's prompt adds beyond High/Medium/Low sort after them
-    const rank = (t) => PRIORITY_RANK[t.priority] ?? 3;
-    tickets = [...tickets].sort((a, b) => rank(a) - rank(b));
+    tickets = [...tickets].sort((a, b) => rankOf(a) - rankOf(b));
   } else if (sortMode === "oldest") {
     tickets = [...tickets].sort(
       (a, b) => new Date(a.openedAt) - new Date(b.openedAt)
@@ -171,11 +178,8 @@ for (const [mode, button] of Object.entries(SORT_BUTTONS)) {
   });
 }
 
-document.querySelectorAll(".queue-link").forEach((link) => {
-  link.addEventListener("click", (event) => {
-    event.preventDefault();
-    showQueue(link.dataset.queue);
-  });
+document.querySelectorAll(".queue-link").forEach((button) => {
+  button.addEventListener("click", () => showQueue(button.dataset.queue));
 });
 
 async function loadTickets() {

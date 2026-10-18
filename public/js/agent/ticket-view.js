@@ -43,9 +43,16 @@ const company = document.querySelector("#ticket-company");
 const description = document.querySelector("#ticket-description");
 const priority = document.querySelector("#ticket-priority");
 const category = document.querySelector("#ticket-category");
+const status = document.querySelector("#ticket-status");
 const completeBtn = document.querySelector("#complete-ticket-btn");
 
 const DONE_STATUSES = ["Completed", "Closed"];
+const STATUS_TEXT = {
+  Opened: "Opened",
+  InProgress: "In progress",
+  Completed: "Completed",
+  Closed: "Closed",
+};
 
 //Load the ticket's info into the page
 async function loadTicketInfo() {
@@ -58,6 +65,7 @@ async function loadTicketInfo() {
     description.textContent = data.description;
     priority.textContent = data.priority;
     category.textContent = data.category;
+    status.textContent = STATUS_TEXT[data.status] || data.status;
     completeBtn.hidden = DONE_STATUSES.includes(data.status); // nothing left to complete
   } catch (error) {
     completeBtn.hidden = true;
@@ -69,6 +77,7 @@ async function loadTicketInfo() {
     description.textContent = "";
     priority.textContent = "";
     category.textContent = "";
+    status.textContent = "";
   }
 }
 
@@ -123,6 +132,7 @@ commentForm.addEventListener("submit", async (event) => {
     });
     commentForm.reset();
     await loadComments();
+    await loadTicketInfo(); // a reply to the customer moves the ticket to In progress
   } catch (error) {
     commentError.textContent = error.message;
   } finally {
@@ -143,6 +153,19 @@ completeBtn.addEventListener("click", async () => {
     alert(error.message);
   } finally {
     completeBtn.disabled = false;
+  }
+});
+
+//Log Out button clears the session and returns to the login page
+const logoutBtn = document.querySelector("#logout-btn");
+logoutBtn.addEventListener("click", async () => {
+  logoutBtn.disabled = true;
+  try {
+    await requestJson("/api/v1/auth/logout", { method: "POST" });
+  } catch {
+    // leave the page either way
+  } finally {
+    window.location.href = "/pages/login.html";
   }
 });
 

@@ -1,10 +1,12 @@
 // server/scripts/seed.js - Demo data for the dashboard, video and grading
 //
-// Creates 3 demo companies, each with an admin, agents, 500 customers, their
-// tickets, a first agent reply on every ticket that has been worked on, invite
-// codes and an API key (thousands of records in total).
+// Creates 2 demo companies - Acme Corp (an online store) and Cascade Health
+// Insurance - each with an admin, agents, 500 customers, their tickets, a first
+// agent reply on every ticket that has been worked on, invite codes and an API
+// key (thousands of records in total). Each company's AI rules are in its
+// prompt file: server/prompts/acme-demo.md and server/prompts/cascade-health-demo.md
+// Safe to re-run: it only deletes and recreates the demo companies.
 // Run: npm run seed
-// Safe to re-run: it only deletes and recreates the three *-demo companies.
 
 import "dotenv/config";
 import bcrypt from "bcryptjs";
@@ -21,15 +23,6 @@ const DEMO_PASSWORD = "Password123";
 
 const STATUSES = ["Opened", "InProgress", "Completed", "Closed"];
 const DONE_STATUSES = ["Completed", "Closed"];
-const PRIORITIES = ["Low", "Medium", "High"]; // the labels used in server/prompts/default.md
-const DESCRIPTIONS = [
-  "I was charged twice this month.",
-  "The checkout page shows an error when I pay.",
-  "I can't log in to my account.",
-  "The app freezes when I open several tabs.",
-  "I need a copy of my receipt.",
-  "My order hasn't arrived yet.",
-];
 const REPLIES = [
   "Thanks for reaching out - I'm looking into this now.",
   "Sorry about that! I've started working on your ticket.",
@@ -41,6 +34,7 @@ const DAY_MS = 24 * HOUR_MS;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
+// Categories and priorities match each company's prompt file
 const COMPANIES = [
   {
     name: "Acme Corp",
@@ -49,22 +43,52 @@ const COMPANIES = [
     agents: 8,
     customers: 500,
     categories: ["Billing", "Technical Support", "Shipping", "Returns"],
+    priorities: ["High", "Medium", "Low"],
+    descriptions: [
+      "I was charged twice this month.",
+      "The checkout page shows an error when I pay.",
+      "I can't log in to my account.",
+      "The app freezes when I open several tabs.",
+      "I need a copy of my receipt.",
+      "My order hasn't arrived yet.",
+      "The jacket I received is the wrong size.",
+    ],
   },
   {
-    name: "Globex Inc",
-    slug: "globex-demo",
-    domain: "globex.example",
+    name: "Cascade Health Insurance",
+    slug: "cascade-health-demo",
+    domain: "cascadehealth.example",
     agents: 6,
     customers: 500,
-    categories: ["Account Access", "Bug Report", "Feature Request"],
-  },
-  {
-    name: "Initech",
-    slug: "initech-demo",
-    domain: "initech.example",
-    agents: 5,
-    customers: 500,
-    categories: ["Hardware", "Software", "Network", "General"],
+    categories: [
+      "Claims",
+      "Prior Authorization",
+      "Billing & Premiums",
+      "Enrollment & Eligibility",
+      "Coverage & Benefits",
+      "Provider Network",
+      "Pharmacy & Prescriptions",
+      "ID Cards",
+      "Appeals & Grievances",
+      "Account Access",
+    ],
+    priorities: [
+      "Urgent Care Access",
+      "Time-Sensitive",
+      "Standard",
+      "Low",
+      "General Inquiry",
+    ],
+    descriptions: [
+      "My claim for last month's MRI was denied.",
+      "I need prior authorization for my knee surgery next week.",
+      "The pharmacy says my prescription isn't covered.",
+      "I haven't received my new member ID card.",
+      "Is Dr. Patel at Riverside Clinic in your network?",
+      "I was billed twice for this month's premium.",
+      "I can't log in to the member portal.",
+      "How do I appeal a coverage decision?",
+    ],
   },
 ];
 
@@ -163,9 +187,9 @@ function buildTickets(tenantId, company, users) {
           ticketId: ticketId++,
           agentId: pick(agentIds),
           status,
-          priority: pick(PRIORITIES),
+          priority: pick(company.priorities),
           category: pick(company.categories),
-          description: pick(DESCRIPTIONS),
+          description: pick(company.descriptions),
           openedAt,
           closedAt,
         })
@@ -261,7 +285,7 @@ async function seed() {
     });
   }
 
-  // Link each demo company to its prompt file (server/prompts/<slug>.md), if any
+  // Link each demo company to its prompt file (server/prompts/<slug>.md)
   const prompts = await linkPromptFiles(db);
 
   const counts = {};
