@@ -27,7 +27,8 @@ Build a service desk that any company can sign up for, keep every company's data
 - **Customer dashboard** lets a customer describe a problem in a sentence or two. The AI chooses the category and priority from the company's prompt file, and the ticket goes to the agent with the fewest open tickets. Customers follow their tickets, reply to comments and close a ticket when it is resolved. Once a ticket is completed or closed, it accepts no more comments.
 - **Agent dashboard** shows an agent's queue with summary counts, sorting by priority or by date, and a page per ticket for replying, adding internal notes the customer never sees, marking the ticket completed, and escalating it to the admins with a reason and a note. An agent's first reply moves a ticket from Opened to In Progress.
 - **Admin dashboard** has five tabs: Dashboard (ticket counts, response and resolution times, tickets by priority, top categories, agent workload and the tickets agents escalated), Analytics (filters by date, priority and category, plus CSV export), API Keys, Team (invites, deactivating and reactivating staff) and Configuration (company name and support email).
-- **API keys** let a company's other systems, such as an email inbox or a website form, open tickets with an `X-API-Key` header.
+- **API keys** let a company's other systems, such as an order system or a website form, open tickets with an `X-API-Key` header.
+- **Email** sent to a company's support address becomes a ticket for that company, linked to the customer who sent it.
 
 ## Screenshot
 
@@ -67,14 +68,55 @@ Because the rules live in the prompt file, two companies can triage completely d
 3. The admin dashboard lists every open escalated ticket with who escalated it, the reason and the note. Admins open the ticket to reply, add notes or complete it, and it leaves the list once it is finished.
 4. Customers never see an escalation or its note.
 
+## How tickets arrive (three channels)
+
+Tickets come from three places, and all three end up in the same agent queue. Each channel first works out **which company** the ticket belongs to; after that, every ticket goes through the same steps.
+
+```mermaid
+flowchart TD
+    W["Customer portal<br/>company = the customer's login"] --> O
+    A["Another system<br/>POST /api/v1/tickets + X-API-Key<br/>company = the key's company"] --> O
+    E["Email to a support address<br/>forwarded to POST /api/v1/email/inbound"] --> R
+    R{"Which company?<br/>the 'to' address = its support email"} --> L
+    L["Which customer?<br/>the 'from' address, if it matches one"] --> O
+    O["Open the ticket<br/>(services/tickets.js)"] --> T
+    T["AI triage<br/>category + priority from the company's prompt file"] --> G
+    G["Assign<br/>the active agent with the fewest open tickets"] --> Q
+    Q["Agent's queue<br/>each ticket shows 'via Web', 'via API' or 'via Email'"]
+```
+
+### Email in detail
+
+1. **Which company?** Every company gives a support email when it registers (for example `support@acme.example`), and no two companies can share one. An email is routed to the company whose support email it was sent to.
+2. **Which customer?** If the sender's address matches one of that company's customers, the ticket is linked to them and also appears on their dashboard. Otherwise the ticket keeps the sender's address, so the agent knows who wrote.
+3. **Into the queue.** The subject and body become the ticket's description, and the ticket gets AI triage and an agent like every other ticket. The agent's ticket page shows "Received via: Email (from ...)".
+
+The endpoint only accepts requests that carry the `INBOUND_EMAIL_SECRET` from `.env` in an `X-Inbound-Secret` header, so only your email service can create email tickets. To connect a real mailbox, use an email service or automation tool that forwards each incoming email to `POST /api/v1/email/inbound` as JSON with the fields `from`, `to`, `subject` and `text`.
+
+To try it without a mailbox, send the endpoint exactly what an email service would (PowerShell, with the server running):
+
+```powershell
+$secret = "the INBOUND_EMAIL_SECRET from your .env"
+$email = @{
+  from    = "Ava Anderson <ava.anderson.1@customer.example>"
+  to      = "support@cascadehealth.example"
+  subject = "Claim denied"
+  text    = "My claim for last month's MRI was denied. Please help."
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/email/inbound `
+  -Headers @{ "X-Inbound-Secret" = $secret } -ContentType "application/json" -Body $email
+```
+
+The reply names the company and the new ticket, which appears in a Cascade agent's queue marked "via Email" and on Ava Anderson's customer dashboard.
+
 ## How a ticket moves
 
-| Status          | Meaning                                    | How it gets there                                                           |
-| --------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
-| **Opened**      | New; nobody has answered the customer yet  | A customer, or another system with an API key, creates it                   |
-| **In Progress** | The agent is working on it                 | The agent (or an admin) sends the first reply the customer can see         |
-| **Completed**   | The agent finished it                      | The agent clicks **Mark this ticket as completed**                         |
-| **Closed**      | The customer ended it                      | The customer clicks **Close Ticket** and gives a reason                     |
+| Status          | Meaning                                   | How it gets there                                                  |
+| --------------- | ----------------------------------------- | ------------------------------------------------------------------ |
+| **Opened**      | New; nobody has answered the customer yet | A customer, another system with an API key, or an email creates it |
+| **In Progress** | The agent is working on it                | The agent (or an admin) sends the first reply the customer can see |
+| **Completed**   | The agent finished it                     | The agent clicks **Mark this ticket as completed**                 |
+| **Closed**      | The customer ended it                     | The customer clicks **Close Ticket** and gives a reason            |
 
 Internal notes and customer comments don't change the status, and priority has no effect on it. Completed and closed tickets accept no more comments. Every dashboard refreshes its numbers when you come back to it, so all pages stay consistent after any change.
 
@@ -90,14 +132,14 @@ Internal notes and customer comments don't change the status, and priority has n
 
 MongoDB with the native driver (no Mongoose). Each model file in `server/models/` defines its collection's fields; `server/config/db.js` creates the indexes when the server starts.
 
-| Collection     | Holds                                                               |
-| -------------- | ------------------------------------------------------------------- |
-| tenants        | Companies and the name of each company's prompt file                |
-| users          | Admins, agents and customers                                        |
-| shareCodes     | Single-use invite codes that expire after 24 hours                  |
-| apikeys        | API keys for other systems (create, list, rotate, revoke)           |
-| tickets        | Support tickets, with status, priority, category and any escalation |
-| ticketComments | Replies and internal notes on tickets                               |
+| Collection     | Holds                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| tenants        | Companies, their support email (incoming email is routed by it) and prompt file name             |
+| users          | Admins, agents and customers                                                                     |
+| shareCodes     | Single-use invite codes that expire after 24 hours                                               |
+| apikeys        | API keys for other systems (create, list, rotate, revoke)                                        |
+| tickets        | Support tickets, with status, priority, category, channel (web, API or email) and any escalation |
+| ticketComments | Replies and internal notes on tickets                                                            |
 
 ## Tech Stack
 
@@ -138,10 +180,12 @@ MongoDB with the native driver (no Mongoose). Each model file in `server/models/
 │   │   ├── tenants.js             # Invites, team and organization settings
 │   │   ├── admin.js               # Dashboard, analytics and CSV export
 │   │   ├── apiKeys.js             # Create, list, rotate and revoke API keys
+│   │   ├── email.js               # Tickets that arrive by email
 │   │   └── tickets.js             # Tickets, comments and escalation
 │   ├── controllers/
 │   │   └── analyticsController.js # Dashboard numbers, analytics and CSV
 │   ├── services/
+│   │   ├── tickets.js             # Opens a ticket the same way for every channel
 │   │   ├── triage.js              # AI category and priority (Groq)
 │   │   └── prompts.js             # Reads and links company prompt files
 │   ├── prompts/                   # Each company's AI rules
@@ -199,9 +243,10 @@ MONGODB_URI=<your MongoDB Atlas connection string>
 SESSION_SECRET=<a long random string>
 GROQ_API_KEY=<your Groq API key>
 GROQ_MODEL=<a model ID from Groq's Models page, e.g. openai/gpt-oss-20b>
+INBOUND_EMAIL_SECRET=<a long random string, shared only with your email service>
 ```
 
-`GROQ_API_KEY` and `GROQ_MODEL` are optional. Without them, new tickets get the category General and the priority Medium. Groq retires models from time to time: if the server logs `Groq returned HTTP 404`, the model ID no longer exists, so pick a current one from Groq's Models page and restart the server.
+`GROQ_API_KEY` and `GROQ_MODEL` are optional. Without them, new tickets get the category General and the priority Medium. `INBOUND_EMAIL_SECRET` is optional too: without it, the email endpoint is switched off. Groq retires models from time to time: if the server logs `Groq returned HTTP 404`, the model ID no longer exists, so pick a current one from Groq's Models page and restart the server.
 
 ### 4. Load the demo data
 
@@ -237,7 +282,7 @@ npm run format
 
 ### 7. Deploy to Vercel (optional)
 
-Import the repository in Vercel, which detects the Express app on its own. Add the same four variables under Settings, Environment Variables. In MongoDB Atlas, under Network Access, allow `0.0.0.0/0`, because Vercel has no fixed IP addresses.
+Import the repository in Vercel, which detects the Express app on its own. Add the same variables (including `INBOUND_EMAIL_SECRET` if you use email tickets) under Settings, Environment Variables. In MongoDB Atlas, under Network Access, allow `0.0.0.0/0`, because Vercel has no fixed IP addresses.
 
 ## GenAI Usage
 
@@ -258,6 +303,7 @@ Prompts used:
 - "Put all pages on the same Bootstrap version."
 - "Do we require so much demo data? Keep it small for a smooth live demo."
 - "Reset the database."
+- "Build an email endpoint to receive emails, explain how an email is sorted to its company and put in the queue as a flow chart, and update the README."
 
 ## Sources and References
 

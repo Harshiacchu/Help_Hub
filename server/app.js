@@ -16,6 +16,7 @@ import tenantRoutes from "./routes/tenants.js";
 import adminRoutes from "./routes/admin.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
 import ticketRoutes from "./routes/tickets.js";
+import emailRoutes from "./routes/email.js";
 
 // Stop with a clear message if the environment variables are missing
 for (const name of ["MONGODB_URI", "SESSION_SECRET"]) {
@@ -53,6 +54,8 @@ app.use("/api/v1/admin", requireAuth, requireRole("superior"), adminRoutes);
 app.use("/api/v1/api-keys", requireAuth, requireRole("superior"), apiKeyRoutes);
 // Tickets accept a logged-in user OR another platform's X-API-Key
 app.use("/api/v1/tickets", apiKeyAuth.optional, requireTenant, ticketRoutes);
+// Emails forwarded by an email service (checked with INBOUND_EMAIL_SECRET)
+app.use("/api/v1/email", emailRoutes);
 
 app.get("/", (req, res) => res.redirect("/pages/login.html"));
 

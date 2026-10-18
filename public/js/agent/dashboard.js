@@ -44,7 +44,10 @@ function buildTicketRow(ticket) {
   header.append(id, date);
 
   const details = document.createElement("p");
-  details.textContent = `${ticket.category} · ${ticket.priority} priority · ${ticket.status}`;
+  // Where the ticket came from: the customer portal, another system (API) or email
+  const channel =
+    { web: "Web", api: "API", email: "Email" }[ticket.source] || "Web";
+  details.textContent = `${ticket.category} · ${ticket.priority} priority · ${ticket.status} · via ${channel}`;
   const description = document.createElement("p");
   description.className = "text-truncate";
   description.textContent = ticket.description;

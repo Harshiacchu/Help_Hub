@@ -42,7 +42,13 @@ router.post(
       tenant = await tenants.create({ name, slug, supportEmailAlias });
     } catch (error) {
       if (isDuplicateKeyError(error)) {
-        throw new ValidationError("That company slug is already taken", 409);
+        const field = Object.keys(error.keyPattern || {})[0];
+        throw new ValidationError(
+          field === "supportEmailAlias"
+            ? "That support email is already used by another organization"
+            : "That company slug is already taken",
+          409
+        );
       }
       throw error;
     }

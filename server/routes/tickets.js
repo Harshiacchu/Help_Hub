@@ -19,7 +19,7 @@ import { getDB } from "../config/db.js";
 import TicketModel from "../models/tickets.js";
 import TicketCommentModel from "../models/ticketComments.js";
 import UserModel from "../models/user.js";
-import { triageTicket } from "../services/triage.js";
+import { openTicket } from "../services/tickets.js";
 import { ValidationError, cleanText } from "../utils/validators.js";
 
 const router = express.Router();
@@ -89,21 +89,9 @@ router.get(
   })
 );
 
-// New tickets go to the active agent with the fewest unfinished tickets
-async function pickAgent(db, tenantId) {
-  const agents = (
-    await new UserModel(db).findByTenantAndRole(tenantId, ["agent"])
-  ).filter((agent) => agent.status === "active");
-  if (agents.length === 0) return null;
-  const load = await new TicketModel(db).countOpenByAgent(tenantId);
-  const lightest = agents.reduce((best, agent) =>
-    (load[agent.userId] || 0) < (load[best.userId] || 0) ? agent : best
-  );
-  return lightest.userId;
-}
-
 //Put a new ticket into the database. Customers create tickets on the website;
-//other platforms (email, web forms, apps) create them with an API key.
+//other systems (order system, web forms, apps) create them with an API key.
+//(Email has its own route: routes/email.js.)
 router.post(
   "/",
   asyncHandler(async (req, res) => {
@@ -122,21 +110,12 @@ router.post(
       max: 1000,
     });
 
-    const db = getDB();
-    // The AI reads the company's prompt file to choose the category and priority
-    const { category, priority } = await triageTicket(db, {
-      tenantId: req.tenantId,
-      description,
-    });
-    const agentId = await pickAgent(db, req.tenantId);
-
-    const ticket = await new TicketModel(db).create({
+    // AI triage and agent assignment happen in openTicket, the same for every channel
+    const ticket = await openTicket(getDB(), {
       tenantId: req.tenantId,
       customerId: fromPlatform ? null : req.user.customerId,
-      agentId,
       description,
-      category,
-      priority,
+      source: fromPlatform ? "api" : "web",
     });
     res.status(201).json({ success: true, data: ticket });
   })

@@ -14,7 +14,7 @@
 // PUT    /:tenantId                         superior   { name, supportEmailAlias }
 
 import express from "express";
-import { getDB } from "../config/db.js";
+import { getDB, isDuplicateKeyError } from "../config/db.js";
 import { requireRole, asyncHandler } from "../middleware/auth.js";
 import TenantModel from "../models/tenant.js";
 import UserModel from "../models/user.js";
@@ -170,7 +170,18 @@ router.put(
       );
     }
 
-    const tenant = await new TenantModel(getDB()).update(req.tenantId, updates);
+    let tenant;
+    try {
+      tenant = await new TenantModel(getDB()).update(req.tenantId, updates);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new ValidationError(
+          "That support email is already used by another organization",
+          409
+        );
+      }
+      throw error;
+    }
     if (updates.name) req.session.tenantName = tenant.name; // keep the navbar in sync
     res.json({ success: true, data: TenantModel.toPublic(tenant) });
   })

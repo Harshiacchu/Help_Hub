@@ -15,6 +15,8 @@ closedAt : must be after openedAt
 priority
 description
 category
+source     : where the ticket came from - "web" (customer portal), "api" or "email"
+fromEmail  : the sender's address, for tickets that arrived by email
 escalation : null until an agent escalates the ticket to the admins, then
              { reason, note, escalatedBy (the agent), escalatedAt }
 */
@@ -23,6 +25,7 @@ import { mustObjectId } from "../config/db.js";
 import { ValidationError, cleanText } from "../utils/validators.js";
 
 const STATUSES = ["Opened", "InProgress", "Completed", "Closed"];
+const SOURCES = ["web", "api", "email"];
 
 class TicketModel {
   constructor(db) {
@@ -42,8 +45,11 @@ class TicketModel {
     openedAt = new Date(),
     closedAt = null,
     escalation = null,
+    source = "web",
+    fromEmail = null,
   }) {
     if (!STATUSES.includes(status)) throw new ValidationError("Invalid status");
+    if (!SOURCES.includes(source)) throw new ValidationError("Invalid source");
     if (typeof priority !== "string" || !priority.trim()) {
       throw new ValidationError("Invalid priority");
     }
@@ -64,6 +70,8 @@ class TicketModel {
       openedAt,
       closedAt,
       escalation,
+      source,
+      fromEmail,
     };
   }
 

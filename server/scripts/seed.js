@@ -206,9 +206,11 @@ function buildTickets(tenantId, company, users) {
       ? new Date(openedAt.getTime() + (2 + (i % 5) * 6) * HOUR_MS)
       : null;
 
+    const customer = customers[i % CUSTOMERS_WITH_TICKETS];
+    const byEmail = i % 6 === 2; // some demo tickets arrived by email
     const ticket = TicketModel.newDocument({
       tenantId,
-      customerId: customers[i % CUSTOMERS_WITH_TICKETS].customerId,
+      customerId: customer.customerId,
       ticketId: i + 1,
       agentId: agent._id,
       status,
@@ -217,6 +219,8 @@ function buildTickets(tenantId, company, users) {
       description,
       openedAt,
       closedAt,
+      source: byEmail ? "email" : "web",
+      fromEmail: byEmail ? customer.email : null,
     });
     if (status === "Closed") ticket.closeReason = "fixed"; // closed by the customer
     tickets.push(ticket);

@@ -50,6 +50,7 @@ const company = document.querySelector("#ticket-company");
 const description = document.querySelector("#ticket-description");
 const priority = document.querySelector("#ticket-priority");
 const category = document.querySelector("#ticket-category");
+const source = document.querySelector("#ticket-source");
 const status = document.querySelector("#ticket-status");
 const completeBtn = document.querySelector("#complete-ticket-btn");
 const escalateBtn = document.querySelector("#escalate-btn");
@@ -103,6 +104,14 @@ async function loadTicketInfo() {
     description.textContent = data.description;
     priority.textContent = data.priority;
     category.textContent = data.category;
+    const channel = {
+      web: "Customer portal",
+      api: "API (another system)",
+      email: "Email",
+    }[data.source];
+    source.textContent =
+      (channel || "Customer portal") +
+      (data.fromEmail ? ` (from ${data.fromEmail})` : "");
     status.textContent = STATUS_TEXT[data.status] || data.status;
     const done = DONE_STATUSES.includes(data.status);
     completeBtn.hidden = done; // nothing left to complete
@@ -125,6 +134,7 @@ async function loadTicketInfo() {
     description.textContent = "";
     priority.textContent = "";
     category.textContent = "";
+    source.textContent = "";
     status.textContent = "";
   }
 }

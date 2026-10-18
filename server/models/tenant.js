@@ -45,6 +45,14 @@ class TenantModel {
     return _id ? this.collection.findOne({ _id }) : null;
   }
 
+  /** The company whose support email this is (used to route incoming email). */
+  async findBySupportEmail(email) {
+    return this.collection.findOne({
+      supportEmailAlias: email,
+      status: "active",
+    });
+  }
+
   async findBySlug(slug) {
     if (typeof slug !== "string") return null;
     return this.collection.findOne({

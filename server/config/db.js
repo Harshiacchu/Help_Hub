@@ -13,6 +13,8 @@ let connecting = null; // shared, so requests arriving together open one connect
 // expired codes, and the ticketComments index makes a ticket's comments fast to find.
 const INDEXES = [
   ["tenants", { slug: 1 }, { unique: true }],
+  // Each company's support email is unique: incoming email is routed by it
+  ["tenants", { supportEmailAlias: 1 }, { unique: true }],
   ["users", { tenantId: 1, email: 1 }, { unique: true }],
   // Each customer's numeric customerId is unique in their company (staff have none)
   [
