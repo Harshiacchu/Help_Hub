@@ -15,10 +15,12 @@ closedAt : must be after openedAt
 priority
 description
 category
+escalation : null until an agent escalates the ticket to the admins, then
+             { reason, note, escalatedBy (the agent), escalatedAt }
 */
 
 import { mustObjectId } from "../config/db.js";
-import { ValidationError } from "../utils/validators.js";
+import { ValidationError, cleanText } from "../utils/validators.js";
 
 const STATUSES = ["Opened", "InProgress", "Completed", "Closed"];
 
@@ -39,6 +41,7 @@ class TicketModel {
     category,
     openedAt = new Date(),
     closedAt = null,
+    escalation = null,
   }) {
     if (!STATUSES.includes(status)) throw new ValidationError("Invalid status");
     if (typeof priority !== "string" || !priority.trim()) {
@@ -60,6 +63,7 @@ class TicketModel {
       category,
       openedAt,
       closedAt,
+      escalation,
     };
   }
 
@@ -148,6 +152,51 @@ class TicketModel {
       { $set: { status: "Completed", closedAt: new Date() } }
     );
     return result.matchedCount === 1;
+  }
+
+  //Reasons an agent can give when escalating a ticket to the admins
+  static ESCALATION_REASONS = {
+    needs_approval: "Needs an admin's approval",
+    beyond_access: "Outside what I can resolve",
+    unhappy_customer: "Customer asked for a manager",
+    other: "Other",
+  };
+
+  //Escalates an agent's open ticket to the admins with a reason and a note.
+  //Returns the escalation, or null if the ticket can't be escalated.
+  async escalate(tenantId, ticketId, agentId, reason, note) {
+    if (!Object.hasOwn(TicketModel.ESCALATION_REASONS, reason)) {
+      throw new ValidationError("Please choose a reason for escalating");
+    }
+    const escalation = {
+      reason,
+      note: cleanText(note, "Note", { min: 5, max: 1000 }),
+      escalatedBy: mustObjectId(agentId, "agent id"),
+      escalatedAt: new Date(),
+    };
+    const result = await this.collection.updateOne(
+      {
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        ticketId: Number(ticketId),
+        agentId: escalation.escalatedBy,
+        status: { $nin: ["Completed", "Closed"] },
+        escalation: null,
+      },
+      { $set: { escalation } }
+    );
+    return result.matchedCount === 1 ? escalation : null;
+  }
+
+  //Gets the company's escalated tickets that are still open, newest first
+  async findEscalated(tenantId) {
+    return this.collection
+      .find({
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        escalation: { $ne: null },
+        status: { $nin: ["Completed", "Closed"] },
+      })
+      .sort({ "escalation.escalatedAt": -1 })
+      .toArray();
   }
 
   //Reasons a customer can give when closing their own ticket

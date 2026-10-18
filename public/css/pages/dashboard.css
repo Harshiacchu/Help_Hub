@@ -16,6 +16,7 @@ body {
 }
 
 .stat-card .card-title {
+  color: inherit; /* white like the number below, not the dark color from cards.css */
   font-size: 0.85rem;
   margin-bottom: 0.5rem;
   opacity: 0.9;

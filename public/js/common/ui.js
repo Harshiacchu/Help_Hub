@@ -48,3 +48,25 @@ export async function copyText(text, button = null) {
     );
   }
 }
+
+/**
+ * Runs `refresh` whenever the user comes back to the page: switching back to
+ * its tab or window, or returning with the browser's Back button (which can
+ * show a saved copy of the page). Keeps numbers and lists current after
+ * actions taken on other pages or by other people.
+ */
+export function refreshWhenShown(refresh) {
+  let last = Date.now();
+  const run = () => {
+    if (Date.now() - last < 1000) return; // these events often fire together
+    last = Date.now();
+    refresh();
+  };
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) run();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") run();
+  });
+  window.addEventListener("focus", run);
+}

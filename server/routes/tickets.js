@@ -4,12 +4,14 @@
 //
 // GET  /mine                     a customer's own tickets
 // GET  /assigned                 an agent's assigned tickets
+// GET  /escalated                the company's open escalated tickets (admins)
 // GET  /:ticketId                one ticket (a customer's own, or any for staff)
 // POST /                         create a ticket { description } (customers or API key)
 // GET  /:ticketId/comments       comments, oldest first
 // POST /:ticketId/comments       add a comment { body, isInternal }
 // POST /:ticketId/close          customer closes their ticket { reason }
 // POST /:ticketId/complete       agent marks a ticket completed
+// POST /:ticketId/escalate       agent escalates their ticket to the admins { reason, note }
 
 import express from "express";
 import { requireRole, asyncHandler } from "../middleware/auth.js";
@@ -22,15 +24,26 @@ import { ValidationError, cleanText } from "../utils/validators.js";
 
 const router = express.Router();
 
+// Customers never see escalation details - they are internal to the company
+function hideInternal(ticket, user) {
+  if (user.role !== "customer") return ticket;
+  const copy = { ...ticket };
+  delete copy.escalation;
+  return copy;
+}
+
 router.get(
   "/mine",
   requireRole("customer"),
   asyncHandler(async (req, res) => {
-    const data = await new TicketModel(getDB()).findByCustomer(
+    const tickets = await new TicketModel(getDB()).findByCustomer(
       req.tenantId,
       req.user.customerId
     );
-    res.json({ success: true, data });
+    res.json({
+      success: true,
+      data: tickets.map((t) => hideInternal(t, req.user)),
+    });
   })
 );
 
@@ -47,13 +60,32 @@ router.get(
   })
 );
 
+//Get the company's open escalated tickets, with who escalated them (admins only)
+router.get(
+  "/escalated",
+  requireRole("superior"),
+  asyncHandler(async (req, res) => {
+    const db = getDB();
+    const [tickets, agents] = await Promise.all([
+      new TicketModel(db).findEscalated(req.tenantId),
+      new UserModel(db).findByTenantAndRole(req.tenantId, ["agent"]),
+    ]);
+    const names = new Map(agents.map((u) => [u.userId, u.name]));
+    const data = tickets.map((t) => ({
+      ...t,
+      escalatedByName: names.get(String(t.escalation.escalatedBy)) || "Agent",
+    }));
+    res.json({ success: true, data });
+  })
+);
+
 //Get a specific ticket: a customer's own, or any ticket in the company for staff
 router.get(
   "/:ticketId",
   requireRole("customer", "agent", "superior"),
   asyncHandler(async (req, res) => {
     const ticket = await findAccessibleTicket(req, getDB());
-    res.json({ success: true, data: ticket });
+    res.json({ success: true, data: hideInternal(ticket, req.user) });
   })
 );
 
@@ -149,6 +181,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const db = getDB();
     const ticket = await findAccessibleTicket(req, db);
+    if (["Completed", "Closed"].includes(ticket.status)) {
+      throw new ValidationError(
+        "This ticket is closed, so no more comments can be added",
+        409
+      );
+    }
     const comment = await new TicketCommentModel(db).createComment({
       tenantId: req.tenantId,
       ticketId: ticket.ticketId,
@@ -214,6 +252,54 @@ router.post(
     res.json({
       success: true,
       data: { ticketId: ticket.ticketId, status: "Completed" },
+    });
+  })
+);
+
+//An agent escalates their own open ticket to the admins, with a reason and a note.
+//The ticket keeps its whole conversation; the reason is also saved as an internal
+//note so whoever picks it up sees why.
+router.post(
+  "/:ticketId/escalate",
+  requireRole("agent"),
+  asyncHandler(async (req, res) => {
+    const db = getDB();
+    const ticket = await findAccessibleTicket(req, db);
+    if (String(ticket.agentId) !== req.user.id) {
+      throw new ValidationError(
+        "Only the agent assigned to this ticket can escalate it",
+        403
+      );
+    }
+    if (["Completed", "Closed"].includes(ticket.status)) {
+      throw new ValidationError("This ticket is already finished", 409);
+    }
+    if (ticket.escalation) {
+      throw new ValidationError("This ticket is already escalated", 409);
+    }
+
+    const escalation = await new TicketModel(db).escalate(
+      req.tenantId,
+      ticket.ticketId,
+      req.user.id,
+      req.body.reason,
+      req.body.note
+    );
+    if (!escalation) {
+      throw new ValidationError("This ticket can no longer be escalated", 409);
+    }
+    const reason = TicketModel.ESCALATION_REASONS[escalation.reason];
+    await new TicketCommentModel(db).createComment({
+      tenantId: req.tenantId,
+      ticketId: ticket.ticketId,
+      authorId: req.user.id,
+      authorRole: "agent",
+      body: `Escalated to the admins (${reason}): ${escalation.note}`,
+      isInternal: true,
+    });
+    res.json({
+      success: true,
+      data: { ticketId: ticket.ticketId, escalation },
     });
   })
 );

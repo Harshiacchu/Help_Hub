@@ -1,4 +1,5 @@
 import { requestJson } from "../common/api.js";
+import { refreshWhenShown } from "../common/ui.js";
 
 const LOGIN_PAGE = "/pages/login.html";
 const ROLE_HOME = {
@@ -52,7 +53,8 @@ function buildTicketRow(ticket) {
   return row;
 }
 
-function showTickets(tickets, emptyText) {
+//Shows up to `limit` tickets, with a note when some are left out
+function showTickets(tickets, emptyText, limit = Infinity) {
   ticketList.replaceChildren();
   if (tickets.length === 0) {
     const empty = document.createElement("p");
@@ -60,7 +62,13 @@ function showTickets(tickets, emptyText) {
     ticketList.append(empty);
     return;
   }
-  ticketList.append(...tickets.map(buildTicketRow));
+  ticketList.append(...tickets.slice(0, limit).map(buildTicketRow));
+  if (tickets.length > limit) {
+    const note = document.createElement("p");
+    note.className = "text-muted small";
+    note.textContent = `Showing ${limit} of ${tickets.length} tickets.`;
+    ticketList.append(note);
+  }
 }
 
 //Fills the summary tiles in the left column
@@ -117,6 +125,7 @@ const QUEUES = {
   closed: {
     title: "Recently Closed",
     empty: "No closed tickets yet.",
+    limit: 50, // history keeps growing; showing the latest keeps the page small
     pick: (tickets) =>
       tickets.filter(isDone).sort((a, b) => closedTime(b) - closedTime(a)),
   },
@@ -158,7 +167,7 @@ function showQueue(name) {
       (a, b) => new Date(a.openedAt) - new Date(b.openedAt)
     );
   }
-  showTickets(tickets, queue.empty);
+  showTickets(tickets, queue.empty, queue.limit);
 }
 
 //Sort buttons: one sort is active at a time; clicking the active one goes back to the default order
@@ -188,7 +197,7 @@ async function loadTickets() {
       redirectOn401: true,
     });
     allTickets = data;
-    showQueue("mine");
+    showQueue(currentQueue); // keep the queue the agent is looking at
     showCounts(data);
     showStats(data);
   } catch (error) {
@@ -212,3 +221,4 @@ logoutBtn.addEventListener("click", async () => {
 const agent = await requireAgent();
 if (!agent) throw new Error("Redirecting");
 loadTickets();
+refreshWhenShown(loadTickets); // stay current when the agent comes back to this page

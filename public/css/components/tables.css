@@ -11,7 +11,8 @@
   font-weight: 600;
 }
 
-.table tbody tr:hover {
+/* Color the cells, not the row: Bootstrap 5.3 gives each cell its own background */
+.table tbody tr:hover > * {
   background-color: var(--color-surface-muted);
 }
 

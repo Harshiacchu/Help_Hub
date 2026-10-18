@@ -2,7 +2,12 @@
 // Dashboard metrics, analytics, API keys, team invites and configuration.
 
 import { requestJson } from "../common/api.js";
-import { copyText, escapeHtml, showAlert } from "../common/ui.js";
+import {
+  copyText,
+  escapeHtml,
+  refreshWhenShown,
+  showAlert,
+} from "../common/ui.js";
 
 let currentUser = null;
 
@@ -266,6 +271,43 @@ function inviteLink(code) {
   return `${window.location.origin}/pages/register.html?code=${encodeURIComponent(code)}`;
 }
 
+// ============================================
+// ESCALATED TICKETS
+// ============================================
+
+const ESCALATION_REASONS = {
+  needs_approval: "Needs an admin's approval",
+  beyond_access: "Outside what I can resolve",
+  unhappy_customer: "Customer asked for a manager",
+  other: "Other",
+};
+
+/** Tickets agents escalated to the admins, each linking to its ticket page. */
+async function loadEscalated() {
+  try {
+    const { data } = await api("/api/v1/tickets/escalated");
+    document.querySelector("#escalatedTable tbody").innerHTML =
+      data
+        .map(
+          (t) => `
+          <tr>
+            <td><a href="/pages/agent-ticket-view.html?id=${encodeURIComponent(t.ticketId)}">#${escapeHtml(t.ticketId)}</a></td>
+            <td>${escapeHtml(t.category)}</td>
+            <td>${escapeHtml(t.priority)}</td>
+            <td>${escapeHtml(t.escalatedByName)}</td>
+            <td>${escapeHtml(ESCALATION_REASONS[t.escalation.reason] || t.escalation.reason)}</td>
+            <td>${escapeHtml(t.escalation.note)}</td>
+            <td>${escapeHtml(new Date(t.escalation.escalatedAt).toLocaleString())}</td>
+          </tr>`
+        )
+        .join("") ||
+      '<tr><td colspan="7" class="text-muted">No escalated tickets</td></tr>';
+  } catch (error) {
+    console.error("Load escalated tickets error:", error);
+    showAlert("Failed to load escalated tickets: " + error.message, "danger");
+  }
+}
+
 async function loadShareCodes() {
   try {
     const { data } = await api("/api/v1/tenants/share-codes");
@@ -506,11 +548,18 @@ async function init() {
 
   await Promise.all([
     loadDashboard(),
+    loadEscalated(),
     loadApiKeys(),
     loadTeam(),
     loadShareCodes(),
     loadOrganization(),
   ]);
+  // Stay current when the admin comes back to this page
+  refreshWhenShown(() => {
+    loadDashboard();
+    loadEscalated();
+    loadTeam();
+  });
 }
 
 init();

@@ -1,4 +1,5 @@
 import { requestJson } from "../common/api.js";
+import { refreshWhenShown } from "../common/ui.js";
 
 const ticketForm = document.querySelector("#ticket-form");
 const descriptionInput = document.querySelector("#ticket-form-text-area");
@@ -105,8 +106,9 @@ logoutBtn.addEventListener("click", async () => {
   }
 });
 
-// Replaces a box's cards with the given tickets, or a short message if none
-function fillBox(box, tickets, emptyText) {
+// Replaces a box's cards with the given tickets (up to `limit`, with a note
+// when some are left out), or a short message if none
+function fillBox(box, tickets, emptyText, limit = Infinity) {
   const container = box.querySelector(".ticket-container");
   container.replaceChildren();
   if (tickets.length === 0) {
@@ -115,7 +117,13 @@ function fillBox(box, tickets, emptyText) {
     container.append(empty);
     return;
   }
-  container.append(...tickets.map(buildTicketCard));
+  container.append(...tickets.slice(0, limit).map(buildTicketCard));
+  if (tickets.length > limit) {
+    const note = document.createElement("p");
+    note.className = "text-muted small";
+    note.textContent = `Showing your ${limit} most recent of ${tickets.length} tickets.`;
+    container.append(note);
+  }
 }
 
 async function loadTickets() {
@@ -126,7 +134,8 @@ async function loadTickets() {
     const done = data.filter((t) => DONE_STATUSES.includes(t.status));
     const open = data.filter((t) => !DONE_STATUSES.includes(t.status));
     fillBox(inProgressBox, open, "No tickets in progress.");
-    fillBox(completedBox, done, "No completed tickets yet.");
+    // History keeps growing; showing the latest 50 keeps the page small
+    fillBox(completedBox, done, "No completed tickets yet.", 50);
   } catch (error) {
     fillBox(inProgressBox, [], `Could not load tickets: ${error.message}`);
     fillBox(completedBox, [], "");
@@ -137,3 +146,4 @@ const customer = await requireCustomer();
 if (!customer) throw new Error("Redirecting");
 document.querySelector("h1").textContent = `Welcome, ${customer.name}`;
 loadTickets();
+refreshWhenShown(loadTickets); // stay current when the customer comes back to this page

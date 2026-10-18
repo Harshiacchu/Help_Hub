@@ -47,7 +47,13 @@ async function askGroq(tenant, rules, description) {
     }),
     signal: AbortSignal.timeout(8000),
   });
-  if (!response.ok) throw new Error(`Groq returned HTTP ${response.status}`);
+  if (!response.ok) {
+    // Groq's reply explains the problem, e.g. "The model ... does not exist"
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Groq returned HTTP ${response.status} ${detail.slice(0, 300)}`
+    );
+  }
   const data = await response.json();
   return JSON.parse(data.choices[0].message.content);
 }

@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "seed": "node server/scripts/seed.js",
+    "reset": "node server/scripts/reset.js && npm run seed",
     "prompts": "node server/scripts/load-prompts.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

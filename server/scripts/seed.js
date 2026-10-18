@@ -1,10 +1,11 @@
 // server/scripts/seed.js - Demo data for the dashboard, video and grading
 //
 // Creates 2 demo companies - Acme Corp (an online store) and Cascade Health
-// Insurance - each with an admin, agents, 500 customers, their tickets, a first
+// Insurance - each with an admin, 3 agents, 500 customers, 50 tickets, a first
 // agent reply on every ticket that has been worked on, invite codes and an API
-// key (thousands of records in total). Each company's AI rules are in its
-// prompt file: server/prompts/acme-demo.md and server/prompts/cascade-health-demo.md
+// key (over 1,000 records in total). The tickets are the same on every run, so
+// a live demo can be rehearsed. Each company's AI rules are in its prompt file:
+// server/prompts/acme-demo.md and server/prompts/cascade-health-demo.md
 // Safe to re-run: it only deletes and recreates the demo companies.
 // Run: npm run seed
 
@@ -21,73 +22,90 @@ import { linkPromptFiles } from "../services/prompts.js";
 
 const DEMO_PASSWORD = "Password123";
 
-const STATUSES = ["Opened", "InProgress", "Completed", "Closed"];
 const DONE_STATUSES = ["Completed", "Closed"];
+// The first 16 customers get tickets; with this repeating pattern each of them
+// has a mix of statuses (the demo customer ava.anderson.1 gets one of each)
+const DEMO_TICKETS = 50;
+const CUSTOMERS_WITH_TICKETS = 16;
+const STATUS_PATTERN = [
+  "Opened",
+  "InProgress",
+  "Completed",
+  "Closed",
+  "Completed",
+];
 const REPLIES = [
   "Thanks for reaching out - I'm looking into this now.",
   "Sorry about that! I've started working on your ticket.",
   "Thanks for the details. I'll update you shortly.",
 ];
-const MAX_TICKETS_PER_CUSTOMER = 5;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
-// Categories and priorities match each company's prompt file
+// Each sample's category and priority follow the company's prompt file
 const COMPANIES = [
   {
     name: "Acme Corp",
     slug: "acme-demo",
     domain: "acme.example",
-    agents: 8,
+    agents: 3,
     customers: 500,
-    categories: ["Billing", "Technical Support", "Shipping", "Returns"],
-    priorities: ["High", "Medium", "Low"],
-    descriptions: [
-      "I was charged twice this month.",
-      "The checkout page shows an error when I pay.",
-      "I can't log in to my account.",
-      "The app freezes when I open several tabs.",
-      "I need a copy of my receipt.",
-      "My order hasn't arrived yet.",
-      "The jacket I received is the wrong size.",
+    samples: [
+      ["Billing", "High", "I was charged twice this month."],
+      [
+        "Technical Support",
+        "High",
+        "The checkout page shows an error when I pay.",
+      ],
+      ["Shipping", "Medium", "My order hasn't arrived yet."],
+      ["Returns", "Medium", "The jacket I received is the wrong size."],
+      ["Technical Support", "High", "I can't log in to my account."],
+      ["Billing", "Low", "I need a copy of my receipt."],
+      [
+        "Technical Support",
+        "Medium",
+        "The app freezes when I open several tabs.",
+      ],
+      ["Shipping", "Low", "Can I change the delivery address for my order?"],
     ],
   },
   {
     name: "Cascade Health Insurance",
     slug: "cascade-health-demo",
     domain: "cascadehealth.example",
-    agents: 6,
+    agents: 3,
     customers: 500,
-    categories: [
-      "Claims",
-      "Prior Authorization",
-      "Billing & Premiums",
-      "Enrollment & Eligibility",
-      "Coverage & Benefits",
-      "Provider Network",
-      "Pharmacy & Prescriptions",
-      "ID Cards",
-      "Appeals & Grievances",
-      "Account Access",
-    ],
-    priorities: [
-      "Urgent Care Access",
-      "Time-Sensitive",
-      "Standard",
-      "Low",
-      "General Inquiry",
-    ],
-    descriptions: [
-      "My claim for last month's MRI was denied.",
-      "I need prior authorization for my knee surgery next week.",
-      "The pharmacy says my prescription isn't covered.",
-      "I haven't received my new member ID card.",
-      "Is Dr. Patel at Riverside Clinic in your network?",
-      "I was billed twice for this month's premium.",
-      "I can't log in to the member portal.",
-      "How do I appeal a coverage decision?",
+    samples: [
+      ["Claims", "Time-Sensitive", "My claim for last month's MRI was denied."],
+      [
+        "Prior Authorization",
+        "Time-Sensitive",
+        "I need prior authorization for my knee surgery next week.",
+      ],
+      [
+        "Pharmacy & Prescriptions",
+        "Urgent Care Access",
+        "The pharmacy won't fill my insulin prescription.",
+      ],
+      ["ID Cards", "Low", "I haven't received my new member ID card."],
+      [
+        "Provider Network",
+        "General Inquiry",
+        "Is Dr. Patel at Riverside Clinic in your network?",
+      ],
+      [
+        "Billing & Premiums",
+        "Standard",
+        "I was billed twice for this month's premium.",
+      ],
+      ["Account Access", "Standard", "I can't log in to the member portal."],
+      [
+        "Coverage & Benefits",
+        "General Inquiry",
+        "Does my plan cover physical therapy?",
+      ],
     ],
   },
 ];
@@ -162,39 +180,46 @@ async function removeDemoCompany(db, slug) {
   await db.collection("tenants").deleteOne({ _id: tenant._id });
 }
 
-//Create tickets
+//Create the demo tickets: the same 50 on every run
 function buildTickets(tenantId, company, users) {
-  const agentIds = users.filter((u) => u.role === "agent").map((u) => u._id);
+  const [ava, ...otherAgents] = users.filter((u) => u.role === "agent");
+  const allAgents = [ava, ...otherAgents];
+  // Ava gets the fewest open tickets, so tickets created during a demo go to her
+  const openRotation = [...otherAgents, ...otherAgents, ava];
   const customers = users.filter((u) => u.role === "customer");
   const tickets = [];
-  let ticketId = 1;
+  let openCount = 0;
+  let doneCount = 0;
 
-  for (const customer of customers) {
-    const count = Math.floor(Math.random() * (MAX_TICKETS_PER_CUSTOMER + 1));
-    for (let i = 0; i < count; i++) {
-      const status = pick(STATUSES);
-      const openedAt = new Date(
-        Date.now() - (4 + Math.random() * 176) * DAY_MS
-      );
-      const closedAt = DONE_STATUSES.includes(status)
-        ? new Date(openedAt.getTime() + (1 + Math.random() * 71) * HOUR_MS)
-        : null;
+  for (let i = 0; i < DEMO_TICKETS; i++) {
+    const status = STATUS_PATTERN[i % STATUS_PATTERN.length];
+    const done = DONE_STATUSES.includes(status);
+    const agent = done
+      ? allAgents[doneCount++ % allAgents.length]
+      : openRotation[openCount++ % openRotation.length];
+    // Shifted per round, so each customer's tickets are about different issues
+    const sample =
+      (i + Math.floor(i / CUSTOMERS_WITH_TICKETS)) % company.samples.length;
+    const [category, priority, description] = company.samples[sample];
+    const openedAt = new Date(Date.now() - (DEMO_TICKETS - i) * DAY_MS);
+    const closedAt = done
+      ? new Date(openedAt.getTime() + (2 + (i % 5) * 6) * HOUR_MS)
+      : null;
 
-      tickets.push(
-        TicketModel.newDocument({
-          tenantId,
-          customerId: customer.customerId,
-          ticketId: ticketId++,
-          agentId: pick(agentIds),
-          status,
-          priority: pick(company.priorities),
-          category: pick(company.categories),
-          description: pick(company.descriptions),
-          openedAt,
-          closedAt,
-        })
-      );
-    }
+    const ticket = TicketModel.newDocument({
+      tenantId,
+      customerId: customers[i % CUSTOMERS_WITH_TICKETS].customerId,
+      ticketId: i + 1,
+      agentId: agent._id,
+      status,
+      priority,
+      category,
+      description,
+      openedAt,
+      closedAt,
+    });
+    if (status === "Closed") ticket.closeReason = "fixed"; // closed by the customer
+    tickets.push(ticket);
   }
   return tickets;
 }

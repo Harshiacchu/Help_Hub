@@ -1,4 +1,5 @@
 import { requestJson } from "../common/api.js";
+import { refreshWhenShown } from "../common/ui.js";
 
 const title = document.querySelector("#ticket-title");
 const company = document.querySelector("#ticket-company");
@@ -9,6 +10,7 @@ const commentForm = document.querySelector("#comment-form");
 const commentText = document.querySelector("#comment-text");
 const commentError = document.querySelector("#comment-error");
 const commentSubmit = document.querySelector("#comment-submit");
+const commentClosed = document.querySelector("#comment-closed");
 const closeBtn = document.querySelector("#close-ticket-btn");
 const closeForm = document.querySelector("#close-form");
 const closeError = document.querySelector("#close-error");
@@ -73,8 +75,13 @@ async function loadTicketInfo() {
     description.textContent = `${data.description}`;
     status.textContent = STATUS_TEXT[data.status] || data.status;
     closeBtn.hidden = DONE_STATUSES.includes(data.status); // nothing to close
+    // A finished ticket is closed: no more comments
+    commentForm.hidden = DONE_STATUSES.includes(data.status);
+    commentClosed.hidden = !commentForm.hidden;
   } catch (error) {
     closeBtn.hidden = true;
+    commentForm.hidden = true;
+    commentClosed.hidden = true;
     title.textContent =
       error.status === 404
         ? "Ticket not found"
@@ -193,3 +200,8 @@ const customer = await requireCustomer();
 if (!customer) throw new Error("Redirecting");
 loadTicketInfo();
 loadComments();
+// Stay current when the customer comes back to this page
+refreshWhenShown(() => {
+  loadTicketInfo();
+  loadComments();
+});

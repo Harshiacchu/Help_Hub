@@ -15,7 +15,10 @@
   <body>
     <header>
       <div class="container" id="ticket-view-header">
-        <a class="btn btn-outline-secondary" href="/pages/agent-dashboard.html"
+        <a
+          class="btn btn-outline-secondary"
+          id="back-link"
+          href="/pages/agent-dashboard.html"
           >Back to Dashboard</a
         >
         <div class="container">
@@ -31,6 +34,43 @@
       <button class="btn btn-success" id="complete-ticket-btn">
         Mark this ticket as completed
       </button>
+      <button class="btn btn-outline-danger" id="escalate-btn" hidden>
+        Escalate to admin
+      </button>
+      <p class="alert alert-warning mt-3" id="escalation-info" hidden></p>
+      <form id="escalate-form" class="mt-3" hidden>
+        <label for="escalate-reason" class="form-label"
+          >Why are you escalating this ticket?</label
+        >
+        <select class="form-select" id="escalate-reason" required>
+          <option value="">Choose a reason</option>
+          <option value="needs_approval">Needs an admin's approval</option>
+          <option value="beyond_access">Outside what I can resolve</option>
+          <option value="unhappy_customer">Customer asked for a manager</option>
+          <option value="other">Other</option>
+        </select>
+        <label for="escalate-note" class="form-label mt-2"
+          >Note for the admin</label
+        >
+        <textarea
+          class="form-control"
+          id="escalate-note"
+          rows="3"
+          maxlength="1000"
+          required
+        ></textarea>
+        <p class="text-danger" id="escalate-error"></p>
+        <button type="submit" class="btn btn-danger" id="escalate-submit">
+          Escalate
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          id="escalate-cancel"
+        >
+          Cancel
+        </button>
+      </form>
     </div>
     <hr />
     <div class="container">
@@ -53,6 +93,9 @@
       <div class="row">
         <div class="comment-container">
           <div id="comment-container"></div>
+          <p class="text-muted" id="comment-closed" hidden>
+            This ticket is closed, so no more comments can be added.
+          </p>
           <form id="comment-form">
             <textarea
               class="form-control"

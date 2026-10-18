@@ -24,9 +24,9 @@ Build a service desk that any company can sign up for, keep every company's data
 - **Register organization** creates a company and gives back a one-time share code for its first admin.
 - **Create account** is one sign-up page for everyone. The share code decides whether the new account is an admin, an agent or a customer, and which company it joins.
 - **Login** takes an organization, email and password. Five wrong passwords in a row lock the account for 30 minutes.
-- **Customer dashboard** lets a customer describe a problem in a sentence or two. The AI chooses the category and priority from the company's prompt file, and the ticket goes to the agent with the fewest open tickets. Customers follow their tickets, reply to comments and close a ticket when it is resolved.
-- **Agent dashboard** shows an agent's queue with summary counts, sorting by priority or by date, and a page per ticket for replying, adding internal notes the customer never sees, and marking the ticket completed. An agent's first reply moves a ticket from Opened to In Progress.
-- **Admin dashboard** has five tabs: Dashboard (ticket counts, response and resolution times, tickets by priority, top categories, agent workload), Analytics (filters by date, priority and category, plus CSV export), API Keys, Team (invites, deactivating and reactivating staff) and Configuration (company name and support email).
+- **Customer dashboard** lets a customer describe a problem in a sentence or two. The AI chooses the category and priority from the company's prompt file, and the ticket goes to the agent with the fewest open tickets. Customers follow their tickets, reply to comments and close a ticket when it is resolved. Once a ticket is completed or closed, it accepts no more comments.
+- **Agent dashboard** shows an agent's queue with summary counts, sorting by priority or by date, and a page per ticket for replying, adding internal notes the customer never sees, marking the ticket completed, and escalating it to the admins with a reason and a note. An agent's first reply moves a ticket from Opened to In Progress.
+- **Admin dashboard** has five tabs: Dashboard (ticket counts, response and resolution times, tickets by priority, top categories, agent workload and the tickets agents escalated), Analytics (filters by date, priority and category, plus CSV export), API Keys, Team (invites, deactivating and reactivating staff) and Configuration (company name and support email).
 - **API keys** let a company's other systems, such as an email inbox or a website form, open tickets with an `X-API-Key` header.
 
 ## Screenshot
@@ -43,7 +43,7 @@ Our project presentation: _add the Google Slides link_
 
 ## Design Document
 
-_Add the link to the design document_, which covers the project description, user personas, user stories and design mockups.
+[DESIGN.md](DESIGN.md) covers the project description, user personas, user stories and design mockups.
 
 ## Design
 
@@ -60,6 +60,24 @@ _Add the link to the design document_, which covers the project description, use
 
 Because the rules live in the prompt file, two companies can triage completely differently. The demo online store uses High, Medium and Low; the demo health insurer uses Urgent Care Access, Time-Sensitive, Standard, Low and General Inquiry.
 
+## How escalation works
+
+1. Only the agent assigned to a ticket can escalate it, once, while it is open. They choose a reason (for example "Needs an admin's approval") and write a note for the admins.
+2. The ticket keeps its whole conversation, and the reason and note are added to it as an internal note.
+3. The admin dashboard lists every open escalated ticket with who escalated it, the reason and the note. Admins open the ticket to reply, add notes or complete it, and it leaves the list once it is finished.
+4. Customers never see an escalation or its note.
+
+## How a ticket moves
+
+| Status          | Meaning                                    | How it gets there                                                           |
+| --------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| **Opened**      | New; nobody has answered the customer yet  | A customer, or another system with an API key, creates it                   |
+| **In Progress** | The agent is working on it                 | The agent (or an admin) sends the first reply the customer can see         |
+| **Completed**   | The agent finished it                      | The agent clicks **Mark this ticket as completed**                         |
+| **Closed**      | The customer ended it                      | The customer clicks **Close Ticket** and gives a reason                     |
+
+Internal notes and customer comments don't change the status, and priority has no effect on it. Completed and closed tickets accept no more comments. Every dashboard refreshes its numbers when you come back to it, so all pages stay consistent after any change.
+
 ## Security
 
 - Every query is filtered by the company taken from the login session or a validated API key, never from the URL or request body, so one company can never see another's data.
@@ -72,21 +90,21 @@ Because the rules live in the prompt file, two companies can triage completely d
 
 MongoDB with the native driver (no Mongoose). Each model file in `server/models/` defines its collection's fields; `server/config/db.js` creates the indexes when the server starts.
 
-| Collection     | Holds                                                     |
-| -------------- | --------------------------------------------------------- |
-| tenants        | Companies and the name of each company's prompt file      |
-| users          | Admins, agents and customers                              |
-| shareCodes     | Single-use invite codes that expire after 24 hours        |
-| apikeys        | API keys for other systems (create, list, rotate, revoke) |
-| tickets        | Support tickets, with status, priority and category       |
-| ticketComments | Replies and internal notes on tickets                     |
+| Collection     | Holds                                                               |
+| -------------- | ------------------------------------------------------------------- |
+| tenants        | Companies and the name of each company's prompt file                |
+| users          | Admins, agents and customers                                        |
+| shareCodes     | Single-use invite codes that expire after 24 hours                  |
+| apikeys        | API keys for other systems (create, list, rotate, revoke)           |
+| tickets        | Support tickets, with status, priority, category and any escalation |
+| ticketComments | Replies and internal notes on tickets                               |
 
 ## Tech Stack
 
 | Layer      | Technologies                                            |
 | ---------- | ------------------------------------------------------- |
 | Markup     | HTML5                                                   |
-| Styling    | CSS3 (organized by modules), Bootstrap 5                |
+| Styling    | CSS3 (organized by modules), Bootstrap 5.3              |
 | Scripting  | Vanilla JavaScript (ES6 modules), client-side rendering |
 | Backend    | Node.js, Express, cookie-session, bcryptjs              |
 | Database   | MongoDB Atlas with the native MongoDB driver            |
@@ -120,7 +138,7 @@ MongoDB with the native driver (no Mongoose). Each model file in `server/models/
 │   │   ├── tenants.js             # Invites, team and organization settings
 │   │   ├── admin.js               # Dashboard, analytics and CSV export
 │   │   ├── apiKeys.js             # Create, list, rotate and revoke API keys
-│   │   └── tickets.js             # Tickets and comments
+│   │   └── tickets.js             # Tickets, comments and escalation
 │   ├── controllers/
 │   │   └── analyticsController.js # Dashboard numbers, analytics and CSV
 │   ├── services/
@@ -132,6 +150,7 @@ MongoDB with the native driver (no Mongoose). Each model file in `server/models/
 │   │   └── cascade-health-demo.md
 │   ├── scripts/
 │   │   ├── seed.js                # npm run seed: demo data
+│   │   ├── reset.js               # npm run reset: empties the database, then seeds
 │   │   └── load-prompts.js        # npm run prompts: links prompt files
 │   └── utils/
 │       └── validators.js          # Shared input checks
@@ -179,10 +198,10 @@ Create `.env` in the project folder with these variables. Never commit this file
 MONGODB_URI=<your MongoDB Atlas connection string>
 SESSION_SECRET=<a long random string>
 GROQ_API_KEY=<your Groq API key>
-GROQ_MODEL=<a model ID from Groq's Models page>
+GROQ_MODEL=<a model ID from Groq's Models page, e.g. openai/gpt-oss-20b>
 ```
 
-`GROQ_API_KEY` and `GROQ_MODEL` are optional. Without them, new tickets get the category General and the priority Medium.
+`GROQ_API_KEY` and `GROQ_MODEL` are optional. Without them, new tickets get the category General and the priority Medium. Groq retires models from time to time: if the server logs `Groq returned HTTP 404`, the model ID no longer exists, so pick a current one from Groq's Models page and restart the server.
 
 ### 4. Load the demo data
 
@@ -190,7 +209,7 @@ GROQ_MODEL=<a model ID from Groq's Models page>
 npm run seed
 ```
 
-This creates two demo companies with about 5,000 records: admins, agents, 500 customers each, tickets and replies. Every demo user's password is `Password123`.
+This creates two demo companies, about 1,200 records in total. Each company has an admin, 3 agents, 500 customers and 50 tickets with replies. The tickets are the same on every run, so a live demo can be rehearsed, and new tickets created during a demo go to the agent Ava. Every demo user's password is `Password123`.
 
 | Company                  | Organization          | Admin                         | Agent (example)                    |
 | ------------------------ | --------------------- | ----------------------------- | ---------------------------------- |
@@ -198,6 +217,8 @@ This creates two demo companies with about 5,000 records: admins, agents, 500 cu
 | Cascade Health Insurance | `cascade-health-demo` | `admin@cascadehealth.example` | `ava.agent1@cascadehealth.example` |
 
 Customers log in as, for example, `ava.anderson.1@customer.example`.
+
+To start over with a completely empty database, run `npm run reset`. It deletes everything in the database (including companies registered through the app), then runs the seed again.
 
 ### 5. Start the server
 
@@ -231,6 +252,12 @@ Prompts used:
 - "Check the code for any bugs, ensure smooth flow in every option, remove unnecessary code and check the database schemas."
 - "Check the rubric, except for the docs, README file or Google Form."
 - "Add a README file similar to this same template."
+- "Why was escalation removed? Create it: only an agent can escalate a ticket, up to the admins."
+- "Make changes to the design doc and README correspondingly."
+- "Check and ensure that after any operation, such as Mark as completed, the Opened, In Progress and other data stay consistent and render on the page."
+- "Put all pages on the same Bootstrap version."
+- "Do we require so much demo data? Keep it small for a smooth live demo."
+- "Reset the database."
 
 ## Sources and References
 
