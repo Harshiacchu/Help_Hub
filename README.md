@@ -2,7 +2,7 @@
 
 A help desk that many companies can share, where an AI reads each new support ticket and sorts it using that company's own rules, so agents always know what to work on first.
 
-Live site: _add the Vercel link after deploying_
+Live site: https://help-hub-xtqe.vercel.app
 
 ## Authors
 
@@ -40,11 +40,11 @@ A short narrated walkthrough: _add the video link_
 
 ## Presentation Slides
 
-Our project presentation: _add the Google Slides link_
+Our project presentation: [Google Slides](https://docs.google.com/presentation/d/1iZrqhBoNJAfLOAxgOx_fOEmiZ-YZD_CyT_7NZDAvyTA/edit?usp=sharing)
 
 ## Design Document
 
-[DESIGN.md](DESIGN.md) covers the project description, user personas, user stories and design mockups.
+[design.pdf](design.pdf) covers the project description, user personas, user stories and design mockups.
 
 ## Design
 
@@ -211,6 +211,7 @@ MongoDB with the native driver (no Mongoose). Each model file in `server/models/
 │       ├── components/            # Alerts, buttons, cards, forms, lists, navbar, tables, tabs
 │       └── pages/                 # One stylesheet per page group
 ├── eslint.config.js               # Class ESLint config
+├── design.pdf                     # Design document: personas, stories, mockups
 ├── package.json                   # Dependencies and npm scripts
 ├── package-lock.json              # Exact installed versions
 ├── LICENSE
@@ -286,24 +287,25 @@ Import the repository in Vercel, which detects the Express app on its own. Add t
 
 ## GenAI Usage
 
+### Sharthi Abhinay
+
 Tool: Claude by Anthropic (claude.ai), model Claude Opus 5.5
 
 Prompts used:
 
+- "Email function endpoint is not created please create it, a code is give for you reference"
 - "Check for bugs and ensure the smooth flow and no hiccups, if there are any please make changes."
-- "This is deployed on Vercel, so make the existing code work with it."
-- "The company only holds its prompt file; every rule for priority will be in the prompt."
-- "Remove the SLA and use Emily's names in the design. Priority will be different for different companies, so it will be in the prompt, not in the database. Make the corresponding changes in my code to integrate her code and merge them."
-- "Check the code for any bugs, ensure smooth flow in every option, remove unnecessary code and check the database schemas."
 - "Check the rubric, except for the docs, README file or Google Form."
 - "Add a README file similar to this same template."
-- "Why was escalation removed? Create it: only an agent can escalate a ticket, up to the admins."
-- "Make changes to the design doc and README correspondingly."
-- "Check and ensure that after any operation, such as Mark as completed, the Opened, In Progress and other data stay consistent and render on the page."
-- "Put all pages on the same Bootstrap version."
-- "Do we require so much demo data? Keep it small for a smooth live demo."
-- "Reset the database."
-- "Build an email endpoint to receive emails, explain how an email is sorted to its company and put in the queue as a flow chart, and update the README."
+- "I am getting this error while deploying, Tell me the how to remove it or solve it."
+
+### Emily Huang
+
+Tool: Claude by Anthropic (claude.ai), model Claude Opus 5.5
+
+Prompts used:
+
+- _Emily, add your prompts here_
 
 ## Sources and References
 
