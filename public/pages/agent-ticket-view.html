@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Ticket</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+      crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pages/customer-ticket-view.css">
+</head>
+<body>
+    <header>
+        <div class="container" id="ticket-view-header"> 
+            <a class="btn btn-outline-secondary" href="/pages/agent-dashboard.html">Back to Dashboard</a>
+            <div class="container">
+                <h1 id="ticket-title">Viewing Ticket #000</h1>    
+                <label id="ticket-company">Issued to: COMPANY NAME</label>
+            </div>
+            <button class="btn btn-outline-secondary" id="logout-btn">Log Out</button>
+        </div>
+    </header>
+    <div class="container my-3">
+        <button class="btn btn-success" id="complete-ticket-btn">Mark this ticket as completed</button>
+    </div>
+    <hr>
+    <div class="container">
+        
+        <div class="space"></div>
+        <div class="row">
+            <div class="col">
+                <div class="info-box">
+                    <label >Priority:</label>
+                    <p id="ticket-priority"></p>
+                    <label>Issue Category:</label>
+                    <p id="ticket-category"></p>
+                    <label>Issue desciption:</label>
+                    <p id="ticket-description">DESCRIPTION .......</p>
+                </div>
+            </div>
+        </div>
+        <div class="space"></div>
+        <div class="row">
+            <div class="comment-container">
+                <div id="comment-container"></div>
+                <form id="comment-form">
+                    <textarea class="form-control" id="comment-text" rows="2" maxlength="2000" required></textarea>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="comment-internal">
+                        <label class="form-check-label" for="comment-internal">Internal note (hidden from the customer)</label>
+                    </div>
+                    <p class="text-danger" id="comment-error"></p>
+                    <button type="submit" class="btn btn-primary" id="comment-submit">Send</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type='module' src="../js/agent/ticket-view.js"></script>
+    
+</body>
+</html>

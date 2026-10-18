@@ -5,7 +5,7 @@ import { showAlert } from "../common/ui.js";
 
 const ROLE_HOME = {
   superior: "/pages/admin-dashboard.html",
-  agent: "/pages/agent-queue.html", // Emily's page
+  agent: "/pages/agent-dashboard.html",
   customer: "/pages/customer-dashboard.html", // Emily's page
 };
 const LAST_ORG_KEY = "helphub.lastOrg";

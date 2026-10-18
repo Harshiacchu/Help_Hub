@@ -16,7 +16,7 @@ const logoutBtn = document.querySelector("#logout-btn");
 const LOGIN_PAGE = "/pages/login.html";
 const ROLE_HOME = {
   superior: "/pages/admin-dashboard.html",
-  agent: "/pages/agent-queue.html",
+  agent: "/pages/agent-dashboard.html",
 };
 const DONE_STATUSES = ["Completed", "Closed"];
 

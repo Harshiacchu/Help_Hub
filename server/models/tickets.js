@@ -3,12 +3,6 @@
 //Timestamps are recored for when the ticketed is opened and closed.
 //Each ticket has a priority (low, medium, high), a description, and a category (assigned by the company)
 
-// Fields used, from the agreed schema:
-// ticket
-//   ticket comments: tenantId, ticketId, authorId, isInternal, createdAt
-// Response time = first public comment by someone other than the customer.
-// All dates are grouped in UTC.
-
 /*
 customerId
 ticketId : unique
@@ -76,6 +70,27 @@ class TicketModel {
         .toArray();
   }
 
+  //Gets the tickets assigned to an agent, newest first
+  async findByAgent(tenantId, agentId) {
+    return this.collection
+      .find({
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        agentId: mustObjectId(agentId, "agent id"),
+      })
+      .sort({ openedAt: -1 })
+      .toArray();
+  }
+
+  //Looks for a ticket in a company by ticket id (for agents and superiors)
+async findTicketInTenant(tenantId, ticketId) {
+  const ticket = Number(ticketId);
+  if (!Number.isInteger(ticket)) return null;
+  return this.collection.findOne({
+    tenantId: mustObjectId(tenantId, "tenant id"),
+    ticketId: ticket,
+  });
+}
+
   //Looks for a customer's ticket given ticket id, customer id, and tenant id
   async findTicketForCustomer(customerId, ticketId, tenantId) {
     const customer = Number(customerId);
@@ -86,6 +101,41 @@ class TicketModel {
       customerId: customer,
       ticketId: ticket,
     });
+  }
+
+  //Marks an open ticket in a company as completed (done by an agent or superior).
+  //Returns false if the ticket is missing or already completed or closed.
+  async completeTicket(tenantId, ticketId) {
+    const result = await this.collection.updateOne(
+      {
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        ticketId: Number(ticketId),
+        status: { $nin: ["Completed", "Closed"] },
+      },
+      { $set: { status: "Completed", closedAt: new Date() } }
+    );
+    return result.matchedCount === 1;
+  }
+
+  //Reasons a customer can give when closing their own ticket
+  static CLOSE_REASONS = ["fixed", "no_longer_issue"];
+
+  //Closes a customer's open ticket and records why.
+  //Returns false if there is no open ticket of theirs to close.
+  async closeTicket(tenantId, customerId, ticketId, reason) {
+    if (!TicketModel.CLOSE_REASONS.includes(reason)) {
+      throw new ValidationError("Please choose a reason for closing this ticket");
+    }
+    const result = await this.collection.updateOne(
+      {
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        customerId: Number(customerId),
+        ticketId: Number(ticketId),
+        status: { $nin: ["Completed", "Closed"] },
+      },
+      { $set: { status: "Closed", closedAt: new Date(), closeReason: reason } }
+    );
+    return result.matchedCount === 1;
   }
 
   //Gets the next available ticketId number for the given tenant

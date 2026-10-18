@@ -1,0 +1,89 @@
+body {
+    background-color: rgb(236, 239, 242);
+}
+h2 {
+    font-size: medium;
+}
+.box {
+    background-color: rgb(253, 253, 253);
+    border-radius: 10px;
+    margin: 20px;
+    min-height: 40rem;
+    padding: 10px;
+    box-shadow: 0px 0px 15px 3px rgb(221, 220, 224);
+}
+
+/* Summary tiles in the left column */
+.stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgb(243, 241, 255);
+    border: 1px solid rgb(226, 219, 235);
+    border-radius: 5px;
+    margin: 10px 0;
+    padding: 10px;
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+/* Queue links in the left column */
+.queue-nav {
+    display: flex;
+    flex-direction: column;
+}
+
+.queue-link {
+    background-color: rgb(243, 241, 255);
+    border: 1px solid rgb(226, 219, 235);
+    border-radius: 5px;
+    color: inherit;
+    margin: 5px 0;
+    padding: 10px;
+    text-decoration: none;
+}
+
+.queue-link:hover {
+    outline: 1px solid rgb(255, 102, 0);
+    box-shadow: -1px -1px 10px 3px rgb(221, 220, 224);
+}
+
+.queue-link.active {
+    outline: 1px solid rgb(255, 102, 0);
+    font-weight: 600;
+}
+
+/* Ticket list in the middle column */
+#ticket-list {
+    max-height: 36rem;
+}
+
+.ticket-row {
+    display: block;
+    background-color: rgb(243, 241, 255);
+    border: 1px solid rgb(226, 219, 235);
+    border-radius: 5px;
+    color: inherit;
+    cursor: pointer;
+    margin: 10px 0;
+    padding: 10px;
+    text-decoration: none;
+}
+
+.ticket-row p {
+    margin: 4px 0 0;
+}
+
+.ticket-row-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+}
+
+.ticket-row:hover {
+    outline: 1px solid rgb(255, 102, 0);
+    box-shadow: -1px -1px 10px 3px rgb(221, 220, 224);
+}
