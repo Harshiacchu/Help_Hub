@@ -85,16 +85,6 @@ function assertRole(role, allowed = ROLES) {
   return role;
 }
 
-function assertPriority(value) {
-  const priority = Number(value);
-  if (!Number.isInteger(priority) || priority < 1 || priority > 5) {
-    throw new ValidationError(
-      "Priority must be a whole number from 1 (Critical) to 5 (Minimal)"
-    );
-  }
-  return priority;
-}
-
 /** Parses a YYYY-MM-DD query value into a UTC Date (start or end of that day). */
 function parseDateParam(value, field, { endOfDay = false } = {}) {
   if (value === undefined || value === null || value === "") return null;
@@ -121,6 +111,5 @@ export {
   assertSlug,
   cleanText,
   assertRole,
-  assertPriority,
   parseDateParam,
 };

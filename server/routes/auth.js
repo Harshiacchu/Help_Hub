@@ -145,6 +145,7 @@ router.post(
       userId: user._id.toString(),
       tenantId: tenant._id.toString(),
       role: user.role,
+      customerId: user.customerId ?? null,
       email: user.email,
       name: user.name,
       tenantName: tenant.name,

@@ -14,6 +14,7 @@ function tenantResolution(req, res, next) {
       id: s.userId,
       tenantId: s.tenantId,
       role: s.role,
+      customerId: s.customerId ?? null,
       email: s.email,
       name: s.name,
     };

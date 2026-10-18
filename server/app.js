@@ -5,12 +5,17 @@ import express from "express";
 
 import { connectDB } from "./config/db.js";
 import { createSessionMiddleware } from "./config/session.js";
-import { tenantResolution } from "./middleware/tenantResolution.js";
+import {
+  tenantResolution,
+  requireTenant,
+} from "./middleware/tenantResolution.js";
 import { requireAuth, requireRole } from "./middleware/auth.js";
+import apiKeyAuth from "./middleware/apiKeyAuth.js";
 import authRoutes from "./routes/auth.js";
 import tenantRoutes from "./routes/tenants.js";
 import adminRoutes from "./routes/admin.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
+import ticketRoutes from "./routes/tickets.js";
 
 // Stop with a clear message if the environment variables are missing
 for (const name of ["MONGODB_URI", "SESSION_SECRET"]) {
@@ -46,12 +51,8 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/tenants", requireAuth, tenantRoutes);
 app.use("/api/v1/admin", requireAuth, requireRole("superior"), adminRoutes);
 app.use("/api/v1/api-keys", requireAuth, requireRole("superior"), apiKeyRoutes);
-
-// Emily's ticket routes go here, for example:
-//   import apiKeyAuth from "./middleware/apiKeyAuth.js";
-//   import { requireTenant } from "./middleware/tenantResolution.js";
-//   import ticketRoutes from "./routes/tickets.js";
-//   app.use("/api/v1/tickets", apiKeyAuth.optional, requireTenant, ticketRoutes);
+// Tickets accept a logged-in user OR another platform's X-API-Key
+app.use("/api/v1/tickets", apiKeyAuth.optional, requireTenant, ticketRoutes);
 
 app.get("/", (req, res) => res.redirect("/pages/login.html"));
 

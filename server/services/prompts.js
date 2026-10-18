@@ -1,8 +1,8 @@
 // server/services/prompts.js - Company AI prompts
 //
 // Each company has its own prompt file in server/prompts/ (e.g. acme-demo.md)
-// holding all of its rules: categories, what each priority means and the SLA
-// hours for each priority. The company's record stores only the file name
+// holding its rules: its categories and the priority labels it uses.
+// The company's record stores only the file name
 // (tenants.promptFile). `npm run prompts` links every <company-slug>.md file
 // to that company. Companies without a file use server/prompts/default.md.
 

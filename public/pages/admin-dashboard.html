@@ -111,8 +111,8 @@
             <ol class="mb-0">
               <li>
                 <strong>Configuration:</strong> check your company name and
-                support email. Ticket categories, priorities and SLA times come
-                from your company's prompt file.
+                support email. Ticket categories and priorities come from your
+                company's prompt file.
               </li>
               <li>
                 <strong>Team:</strong> generate a share code for each agent,
@@ -123,8 +123,8 @@
                 can open tickets using the <code>X-API-Key</code> header.
               </li>
               <li>
-                <strong>Dashboard and Analytics:</strong> track response times,
-                resolution times and SLA compliance as tickets come in.
+                <strong>Dashboard and Analytics:</strong> track ticket counts,
+                response times and resolution times as tickets come in.
               </li>
             </ol>
             <button
@@ -136,7 +136,7 @@
           </div>
           <div class="row mb-4">
             <!-- Ticket Stats Cards -->
-            <div class="col-md-2 mb-3">
+            <div class="col-6 col-md mb-3">
               <div class="card stat-card bg-primary text-white">
                 <div class="card-body">
                   <h6 class="card-title">Total Tickets</h6>
@@ -144,15 +144,15 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-2 mb-3">
+            <div class="col-6 col-md mb-3">
               <div class="card stat-card bg-warning text-white">
                 <div class="card-body">
-                  <h6 class="card-title">Open</h6>
-                  <h2 id="openTickets">0</h2>
+                  <h6 class="card-title">Opened</h6>
+                  <h2 id="openedTickets">0</h2>
                 </div>
               </div>
             </div>
-            <div class="col-md-2 mb-3">
+            <div class="col-6 col-md mb-3">
               <div class="card stat-card bg-info text-white">
                 <div class="card-body">
                   <h6 class="card-title">In Progress</h6>
@@ -160,27 +160,19 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-2 mb-3">
-              <div class="card stat-card bg-secondary text-white">
+            <div class="col-6 col-md mb-3">
+              <div class="card stat-card bg-success text-white">
                 <div class="card-body">
-                  <h6 class="card-title">Pending</h6>
-                  <h2 id="pendingTickets">0</h2>
+                  <h6 class="card-title">Completed</h6>
+                  <h2 id="completedTickets">0</h2>
                 </div>
               </div>
             </div>
-            <div class="col-md-2 mb-3">
-              <div class="card stat-card bg-success text-white">
+            <div class="col-6 col-md mb-3">
+              <div class="card stat-card bg-secondary text-white">
                 <div class="card-body">
                   <h6 class="card-title">Closed</h6>
                   <h2 id="closedTickets">0</h2>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2 mb-3">
-              <div class="card stat-card bg-danger text-white">
-                <div class="card-body">
-                  <h6 class="card-title">SLA Compliance</h6>
-                  <h2 id="slaCompliance">0%</h2>
                 </div>
               </div>
             </div>
@@ -236,8 +228,8 @@
                       <tr>
                         <th>Agent Name</th>
                         <th>Assigned Tickets</th>
+                        <th>Completed</th>
                         <th>Avg Resolution Time</th>
-                        <th>SLA Met</th>
                       </tr>
                     </thead>
                     <tbody></tbody>
@@ -280,11 +272,6 @@
                   >
                   <select id="analyticsPriority" class="form-control">
                     <option value="">All</option>
-                    <option value="1">Critical</option>
-                    <option value="2">High</option>
-                    <option value="3">Medium</option>
-                    <option value="4">Low</option>
-                    <option value="5">Minimal</option>
                   </select>
                 </div>
                 <div class="col-md-3">

@@ -9,14 +9,16 @@ let client = null;
 let db = null;
 let connecting = null; // shared, so requests arriving together open one connection
 
-// Unique indexes keep the data consistent. The last one deletes expired share codes.
-// (Emily adds indexes for tickets, comments and auditLog with her models.)
+// Unique indexes keep the data consistent; the shareCodes expiresAt index deletes
+// expired codes, and the ticketComments index makes a ticket's comments fast to find.
 const INDEXES = [
   ["tenants", { slug: 1 }, { unique: true }],
   ["users", { tenantId: 1, email: 1 }, { unique: true }],
   ["apikeys", { keyHash: 1 }, { unique: true }],
   ["shareCodes", { code: 1 }, { unique: true }],
   ["shareCodes", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
+  ["tickets", { tenantId: 1, ticketId: 1 }, { unique: true }],
+  ["ticketComments", { tenantId: 1, ticketId: 1 }, {}],
 ];
 
 /** Connects once; every later call reuses the same connection. */

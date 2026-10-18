@@ -20,6 +20,8 @@ export default [
         ...globals.browser,
         ...globals.node,
         ...globals.es2025,
+        // Created by the Bootstrap bundle <script> tag in the HTML pages
+        bootstrap: "readonly",
       },
     },
     plugins: {

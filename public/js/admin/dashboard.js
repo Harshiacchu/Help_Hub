@@ -24,14 +24,14 @@ async function loadDashboard() {
     const { data } = await api("/api/v1/admin/dashboard");
 
     $("totalTickets").textContent = data.totalTickets;
-    $("openTickets").textContent = data.openTickets;
+    $("openedTickets").textContent = data.openedTickets;
     $("inProgressTickets").textContent = data.inProgressTickets;
-    $("pendingTickets").textContent = data.pendingTickets;
+    $("completedTickets").textContent = data.completedTickets;
     $("closedTickets").textContent = data.closedTickets;
-    $("slaCompliance").textContent = fmt1(data.slaCompliance) + "%";
     $("avgResponseTime").textContent = fmt1(data.avgResponseTime);
     $("avgResolutionTime").textContent = fmt1(data.avgResolutionTime);
-    applyCategoryFilterOptions(data.categories);
+    fillFilter("analyticsCategory", data.categories);
+    fillFilter("analyticsPriority", data.priorities);
 
     $("priorityStats").innerHTML =
       Object.entries(data.ticketsByPriority)
@@ -56,8 +56,8 @@ async function loadDashboard() {
             <tr>
               <td>${escapeHtml(a.name)}</td>
               <td>${escapeHtml(a.ticketCount)}</td>
+              <td>${escapeHtml(a.completed)}</td>
               <td>${fmt1(a.avgResolutionTime)} hours</td>
-              <td>${escapeHtml(a.slaMet)}/${escapeHtml(a.ticketCount)}</td>
             </tr>`
         )
         .join("") ||
@@ -89,12 +89,14 @@ async function loadAnalytics() {
   try {
     const { data } = await api(`/api/v1/admin/analytics?${analyticsQuery()}`);
 
-    const slaRows = Object.entries(data.slaByPriority)
-      .map(
-        ([label, pct]) =>
-          `<li class="list-group-item">${escapeHtml(label)}: ${fmt1(pct)}%</li>`
-      )
-      .join("");
+    const priorityRows =
+      Object.entries(data.ticketsByPriority)
+        .map(
+          ([label, count]) =>
+            `<li class="list-group-item">${escapeHtml(label)}: ${escapeHtml(count)}</li>`
+        )
+        .join("") ||
+      '<li class="list-group-item text-muted">No tickets in this range</li>';
 
     const responseRows =
       data.responseTimeByCategory
@@ -110,9 +112,8 @@ async function loadAnalytics() {
         ([q, m]) => `
           <tr>
             <td>${escapeHtml(q)}</td>
-            <td>${escapeHtml(m.ticketsCreated)}</td>
-            <td>${escapeHtml(m.resolved)}</td>
-            <td>${fmt1(m.slaCompliance)}%</td>
+            <td>${escapeHtml(m.opened)}</td>
+            <td>${escapeHtml(m.closed)}</td>
           </tr>`
       )
       .join("");
@@ -120,8 +121,8 @@ async function loadAnalytics() {
     $("analyticsResults").innerHTML = `
       <div class="row mt-3">
         <div class="col-md-6">
-          <h6>SLA Compliance by Priority</h6>
-          <ul class="list-group">${slaRows}</ul>
+          <h6>Tickets by Priority</h6>
+          <ul class="list-group">${priorityRows}</ul>
         </div>
         <div class="col-md-6">
           <h6>Response Time by Category</h6>
@@ -132,7 +133,7 @@ async function loadAnalytics() {
         <div class="col-12">
           <h6>Quarterly Metrics (${escapeHtml(data.filters.year)})</h6>
           <table class="table table-sm">
-            <thead><tr><th>Quarter</th><th>Created</th><th>Resolved</th><th>SLA Compliance</th></tr></thead>
+            <thead><tr><th>Quarter</th><th>Opened</th><th>Closed</th></tr></thead>
             <tbody>${quarterRows}</tbody>
           </table>
         </div>
@@ -376,15 +377,15 @@ async function setMemberStatus(userId, action) {
 // ANALYTICS CATEGORY FILTER
 // ============================================
 
-/** Fills the category filter with the categories this company's tickets use. */
-function applyCategoryFilterOptions(categories) {
-  const select = $("analyticsCategory");
+/** Fills an analytics filter with the values this company's tickets use. */
+function fillFilter(selectId, values) {
+  const select = $(selectId);
   const current = select.value;
   select.replaceChildren(
     new Option("All", ""),
-    ...categories.map((category) => new Option(category, category))
+    ...values.map((value) => new Option(value, value))
   );
-  if (categories.includes(current)) select.value = current;
+  if (values.includes(current)) select.value = current;
 }
 
 // ============================================

@@ -1,406 +1,232 @@
-// server/controllers/analyticsController.js - Dashboard & analytics metrics
+// server/controllers/analyticsController.js - Dashboard numbers, analytics and CSV export
 //
-// Reads Emily's collections (tickets, comments) - never writes to them.
-// Fields used, from the agreed schema:
-//   tickets:  tenantId, customerId, assigneeId, priority (1-5), category, status,
-//             createdAt, resolvedAt, slaDueAt
-//   comments: tenantId, ticketId, authorId, isInternal, createdAt
-// Response time = first public comment by someone other than the customer.
-// All dates are grouped in UTC.
+// Reads Emily's ticket data:
+//   tickets:        ticketId, customerId, agentId, status, priority, category,
+//                   description, openedAt, closedAt
+//   ticketComments: ticketId, authorRole, isInternal, createdAt
+// Statuses: Opened, InProgress, Completed, Closed.
+// Priorities are the labels from each company's prompt file, counted as stored.
+// Response time = opened -> first reply by an agent or admin that the customer
+// can see (internal notes don't count).
+// Resolution time = opened -> closed.
 
 import { mustObjectId } from "../config/db.js";
 import {
-  assertPriority,
-  parseDateParam,
+  STAFF_ROLES,
   ValidationError,
+  parseDateParam,
 } from "../utils/validators.js";
 
+const DONE_STATUSES = ["Completed", "Closed"];
 const HOUR_MS = 60 * 60 * 1000;
 const EXPORT_ROW_LIMIT = 10000;
-const CLOSED_STATUSES = ["resolved", "closed"];
-const PRIORITY_LABELS = {
-  1: "Critical",
-  2: "High",
-  3: "Medium",
-  4: "Low",
-  5: "Minimal",
-};
 
-const round1 = (n) =>
-  typeof n === "number" && Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
-const msToHours = (ms) => round1((ms || 0) / HOUR_MS);
-const percent = (part, total) => (total > 0 ? round1((part / total) * 100) : 0);
+const isDone = (ticket) =>
+  DONE_STATUSES.includes(ticket.status) && ticket.closedAt instanceof Date;
 
-// "resolved on time" for tickets that have both resolvedAt and slaDueAt
-const IS_DATE = (field) => ({ $eq: [{ $type: field }, "date"] });
-const SLA_TRACKED = { $and: [IS_DATE("$resolvedAt"), IS_DATE("$slaDueAt")] };
-const SLA_MET = { $and: [SLA_TRACKED, { $lte: ["$resolvedAt", "$slaDueAt"] }] };
+/** Average of durations in milliseconds, as hours with one decimal (0 if none). */
+function averageHours(durations) {
+  if (durations.length === 0) return 0;
+  const average = durations.reduce((a, b) => a + b, 0) / durations.length;
+  return Math.round((average / HOUR_MS) * 10) / 10;
+}
+
+/** { value: count } for one field, e.g. countBy(tickets, "priority"). */
+function countBy(tickets, field) {
+  const counts = {};
+  for (const ticket of tickets) {
+    const key = ticket[field] || "None";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+
+const resolutionTimes = (tickets) =>
+  tickets.filter(isDone).map((t) => t.closedAt - t.openedAt);
 
 class AnalyticsController {
   constructor(db) {
     this.tickets = db.collection("tickets");
+    this.comments = db.collection("ticketComments");
     this.users = db.collection("users");
   }
 
-  /** Validates query params into a Mongo match stage (always tenant-scoped). */
-  buildMatch(tenantId, filters = {}) {
-    const match = { tenantId: mustObjectId(tenantId, "tenant id") };
-
+  /** A company's tickets, optionally filtered by opened date, priority and category. */
+  async findTickets(tenantId, filters = {}) {
+    const query = { tenantId: mustObjectId(tenantId, "tenant id") };
     const start = parseDateParam(filters.startDate, "startDate");
     const end = parseDateParam(filters.endDate, "endDate", { endOfDay: true });
-    if (start && end && start > end)
+    if (start && end && start > end) {
       throw new ValidationError("startDate must be before endDate");
+    }
     if (start || end) {
-      match.createdAt = {};
-      if (start) match.createdAt.$gte = start;
-      if (end) match.createdAt.$lte = end;
+      query.openedAt = {};
+      if (start) query.openedAt.$gte = start;
+      if (end) query.openedAt.$lte = end;
     }
-
-    if (filters.priority !== undefined && filters.priority !== "") {
-      match.priority = assertPriority(filters.priority);
-    }
-    if (typeof filters.category === "string" && filters.category.trim()) {
-      match.category = filters.category.trim();
-    }
-    return match;
+    if (filters.priority) query.priority = String(filters.priority);
+    if (filters.category) query.category = String(filters.category);
+    return this.tickets.find(query).toArray();
   }
 
-  /** Pipeline stages that attach firstReplyAt (earliest public non-customer comment). */
-  firstReplyStages(tenantOid) {
-    return [
-      {
-        $lookup: {
-          from: "comments",
-          let: { ticketId: "$_id", customerId: "$customerId" },
-          pipeline: [
-            {
-              $match: {
-                tenantId: tenantOid,
-                $expr: {
-                  $and: [
-                    { $eq: ["$ticketId", "$$ticketId"] },
-                    { $ne: ["$authorId", "$$customerId"] },
-                    { $ne: ["$isInternal", true] },
-                  ],
-                },
-              },
-            },
-            { $group: { _id: null, first: { $min: "$createdAt" } } },
-          ],
-          as: "firstReply",
-        },
-      },
-      { $unwind: "$firstReply" },
-      {
-        $addFields: {
-          responseMs: { $subtract: ["$firstReply.first", "$createdAt"] },
-        },
-      },
-    ];
+  /** Response times (ms) of the tickets that have a staff reply the customer can see. */
+  async responseTimes(tenantId, tickets) {
+    const replies = await this.comments
+      .find({
+        tenantId: mustObjectId(tenantId, "tenant id"),
+        authorRole: { $in: STAFF_ROLES },
+        isInternal: false,
+      })
+      .toArray();
+    const firstReply = new Map();
+    for (const reply of replies) {
+      const earliest = firstReply.get(reply.ticketId);
+      if (!earliest || reply.createdAt < earliest) {
+        firstReply.set(reply.ticketId, reply.createdAt);
+      }
+    }
+    return tickets
+      .filter((t) => firstReply.has(t.ticketId))
+      .map((t) => ({ ticket: t, ms: firstReply.get(t.ticketId) - t.openedAt }));
   }
-
-  // ============================================
-  // DASHBOARD
-  // ============================================
 
   async getDashboardMetrics(tenantId) {
-    const match = this.buildMatch(tenantId);
-    const [labels, facetResult, avgResponseTime, agentWorkload] =
-      await Promise.all([
-        PRIORITY_LABELS,
-        this.tickets
-          .aggregate([
-            { $match: match },
-            {
-              $facet: {
-                byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
-                byPriority: [
-                  { $group: { _id: "$priority", count: { $sum: 1 } } },
-                ],
-                resolution: [
-                  { $match: { resolvedAt: { $type: "date" } } },
-                  {
-                    $group: {
-                      _id: null,
-                      avgMs: {
-                        $avg: { $subtract: ["$resolvedAt", "$createdAt"] },
-                      },
-                      slaTracked: { $sum: { $cond: [SLA_TRACKED, 1, 0] } },
-                      slaMet: { $sum: { $cond: [SLA_MET, 1, 0] } },
-                    },
-                  },
-                ],
-                topCategories: [
-                  { $match: { category: { $type: "string", $ne: "" } } },
-                  { $group: { _id: "$category", count: { $sum: 1 } } },
-                  { $sort: { count: -1, _id: 1 } },
-                  { $limit: 5 },
-                ],
-              },
-            },
-          ])
-          .toArray(),
-        this.getAverageResponseTime(tenantId),
-        this.getAgentWorkload(tenantId),
-      ]);
-
-    const facet = facetResult[0] || {};
-    const statusCounts = Object.fromEntries(
-      (facet.byStatus || []).map((s) => [s._id, s.count])
-    );
-    const priorityCounts = Object.fromEntries(
-      (facet.byPriority || []).map((p) => [String(p._id), p.count])
-    );
-    const resolution = (facet.resolution && facet.resolution[0]) || {};
-
-    const ticketsByPriority = {};
-    for (let level = 1; level <= 5; level++) {
-      ticketsByPriority[labels[level]] = priorityCounts[String(level)] || 0;
-    }
-
-    const totalTickets = Object.values(statusCounts).reduce((a, b) => a + b, 0);
-    // The categories this company's tickets use (fills the analytics filter)
-    const categories = (
-      await this.tickets.distinct("category", { tenantId: match.tenantId })
-    )
-      .filter(Boolean)
-      .sort();
+    const tenantOid = mustObjectId(tenantId, "tenant id");
+    const [tickets, agents] = await Promise.all([
+      this.findTickets(tenantId),
+      this.users
+        .find({ tenantId: tenantOid, role: "agent", status: "active" })
+        .sort({ name: 1 })
+        .toArray(),
+    ]);
+    const responses = await this.responseTimes(tenantId, tickets);
+    const byStatus = countBy(tickets, "status");
+    const byPriority = countBy(tickets, "priority");
+    const byCategory = countBy(tickets, "category");
 
     return {
-      totalTickets,
-      openTickets: statusCounts.open || 0,
-      inProgressTickets: statusCounts.in_progress || 0,
-      pendingTickets: statusCounts.pending || 0,
-      resolvedTickets: statusCounts.resolved || 0,
-      closedTickets: CLOSED_STATUSES.reduce(
-        (sum, s) => sum + (statusCounts[s] || 0),
-        0
-      ),
-      avgResponseTime,
-      avgResolutionTime: msToHours(resolution.avgMs),
-      slaCompliance: percent(
-        resolution.slaMet || 0,
-        resolution.slaTracked || 0
-      ),
-      ticketsByPriority,
-      ticketsByStatus: statusCounts,
-      agentWorkload,
-      topCategories: (facet.topCategories || []).map((c) => ({
-        category: c._id,
-        count: c.count,
-      })),
-      categories,
+      totalTickets: tickets.length,
+      openedTickets: byStatus.Opened || 0,
+      inProgressTickets: byStatus.InProgress || 0,
+      completedTickets: byStatus.Completed || 0,
+      closedTickets: byStatus.Closed || 0,
+      avgResponseTime: averageHours(responses.map((r) => r.ms)),
+      avgResolutionTime: averageHours(resolutionTimes(tickets)),
+      ticketsByPriority: byPriority,
+      topCategories: Object.entries(byCategory)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([category, count]) => ({ category, count })),
+      agentWorkload: agents.map((agent) => {
+        const mine = tickets.filter(
+          (t) => String(t.agentId) === String(agent._id)
+        );
+        return {
+          name: agent.name,
+          ticketCount: mine.length,
+          completed: mine.filter(isDone).length,
+          avgResolutionTime: averageHours(resolutionTimes(mine)),
+        };
+      }),
+      // The values the company's tickets use, for the analytics filters
+      categories: Object.keys(byCategory)
+        .filter((c) => c !== "None")
+        .sort(),
+      priorities: Object.keys(byPriority)
+        .filter((p) => p !== "None")
+        .sort(),
     };
   }
 
-  /** Average hours from ticket creation to first agent reply. */
-  async getAverageResponseTime(tenantId, filters = {}) {
-    const match = this.buildMatch(tenantId, filters);
-    const [row] = await this.tickets
-      .aggregate([
-        { $match: match },
-        ...this.firstReplyStages(match.tenantId),
-        { $group: { _id: null, avgMs: { $avg: "$responseMs" } } },
-      ])
-      .toArray();
-    return msToHours(row && row.avgMs);
-  }
+  async getAnalytics(tenantId, filters = {}) {
+    const tickets = await this.findTickets(tenantId, filters);
+    const responses = await this.responseTimes(tenantId, tickets);
 
-  /** { Critical: %, High: %, ... } */
-  async getSLAByPriority(tenantId, filters = {}) {
-    const [labels, rows] = await Promise.all([
-      PRIORITY_LABELS,
-      this.tickets
-        .aggregate([
-          { $match: this.buildMatch(tenantId, filters) },
-          {
-            $group: {
-              _id: "$priority",
-              tracked: { $sum: { $cond: [SLA_TRACKED, 1, 0] } },
-              met: { $sum: { $cond: [SLA_MET, 1, 0] } },
-            },
-          },
-        ])
-        .toArray(),
-    ]);
-    const byPriority = Object.fromEntries(rows.map((r) => [String(r._id), r]));
-    const result = {};
-    for (let level = 1; level <= 5; level++) {
-      const r = byPriority[String(level)];
-      result[labels[level]] = percent(r ? r.met : 0, r ? r.tracked : 0);
+    const responseByCategory = {};
+    for (const { ticket, ms } of responses) {
+      (responseByCategory[ticket.category] ||= []).push(ms);
     }
-    return result;
-  }
 
-  /** One row per active agent/superior, including people with no tickets yet. */
-  async getAgentWorkload(tenantId) {
-    const tenantOid = mustObjectId(tenantId, "tenant id");
-    const [staff, rows] = await Promise.all([
-      this.users
-        .find({
-          tenantId: tenantOid,
-          role: { $in: ["agent", "superior"] },
-          status: "active",
-        })
-        .project({ name: 1, role: 1 })
-        .toArray(),
-      this.tickets
-        .aggregate([
-          { $match: { tenantId: tenantOid, assigneeId: { $ne: null } } },
-          {
-            $group: {
-              _id: "$assigneeId",
-              ticketCount: { $sum: 1 },
-              openCount: {
-                $sum: { $cond: [{ $in: ["$status", CLOSED_STATUSES] }, 0, 1] },
-              },
-              avgResolutionMs: {
-                $avg: {
-                  $cond: [
-                    IS_DATE("$resolvedAt"),
-                    { $subtract: ["$resolvedAt", "$createdAt"] },
-                    null,
-                  ],
-                },
-              },
-              slaMet: { $sum: { $cond: [SLA_MET, 1, 0] } },
-            },
-          },
-        ])
-        .toArray(),
-    ]);
-
-    const statsById = Object.fromEntries(rows.map((r) => [String(r._id), r]));
-    return staff
-      .map((user) => {
-        const s = statsById[String(user._id)] || {};
-        return {
-          userId: String(user._id),
-          name: user.name,
-          role: user.role,
-          ticketCount: s.ticketCount || 0,
-          openCount: s.openCount || 0,
-          avgResolutionTime: msToHours(s.avgResolutionMs),
-          slaMet: s.slaMet || 0,
-        };
-      })
-      .sort(
-        (a, b) => b.ticketCount - a.ticketCount || a.name.localeCompare(b.name)
-      );
-  }
-
-  /** { Q1: { ticketsCreated, resolved, slaCompliance }, ... } for one calendar year (UTC). */
-  async getQuarterlyMetrics(
-    tenantId,
-    year = new Date().getUTCFullYear(),
-    filters = {}
-  ) {
-    const y = Number(year);
-    if (!Number.isInteger(y) || y < 2000 || y > 2100)
-      throw new ValidationError("year must be between 2000 and 2100");
-
-    const base = this.buildMatch(tenantId, {
-      priority: filters.priority,
-      category: filters.category,
-    });
-    const yearStart = new Date(Date.UTC(y, 0, 1));
-    const yearEnd = new Date(Date.UTC(y + 1, 0, 1));
-    const quarterOf = (field) => ({
-      $ceil: { $divide: [{ $month: field }, 3] },
-    });
-
-    const [facet] = await this.tickets
-      .aggregate([
-        { $match: base },
-        {
-          $facet: {
-            created: [
-              { $match: { createdAt: { $gte: yearStart, $lt: yearEnd } } },
-              { $group: { _id: quarterOf("$createdAt"), count: { $sum: 1 } } },
-            ],
-            resolved: [
-              { $match: { resolvedAt: { $gte: yearStart, $lt: yearEnd } } },
-              {
-                $group: {
-                  _id: quarterOf("$resolvedAt"),
-                  count: { $sum: 1 },
-                  tracked: { $sum: { $cond: [SLA_TRACKED, 1, 0] } },
-                  met: { $sum: { $cond: [SLA_MET, 1, 0] } },
-                },
-              },
-            ],
-          },
-        },
-      ])
-      .toArray();
-
-    const created = Object.fromEntries(
-      ((facet && facet.created) || []).map((r) => [r._id, r.count])
-    );
-    const resolved = Object.fromEntries(
-      ((facet && facet.resolved) || []).map((r) => [r._id, r])
-    );
-    const result = {};
+    const end = parseDateParam(filters.endDate, "endDate");
+    const start = parseDateParam(filters.startDate, "startDate");
+    const year = (end || start || new Date()).getUTCFullYear();
+    const quarterOf = (date) => Math.floor(date.getUTCMonth() / 3) + 1;
+    const quarterlyMetrics = {};
     for (let q = 1; q <= 4; q++) {
-      const r = resolved[q] || {};
-      result[`Q${q}`] = {
-        ticketsCreated: created[q] || 0,
-        resolved: r.count || 0,
-        slaCompliance: percent(r.met || 0, r.tracked || 0),
+      quarterlyMetrics[`Q${q}`] = {
+        opened: tickets.filter(
+          (t) =>
+            t.openedAt.getUTCFullYear() === year && quarterOf(t.openedAt) === q
+        ).length,
+        closed: tickets.filter(
+          (t) =>
+            isDone(t) &&
+            t.closedAt.getUTCFullYear() === year &&
+            quarterOf(t.closedAt) === q
+        ).length,
       };
     }
-    return result;
-  }
-
-  /** [{ category, avgResponseTime }] sorted slowest first. */
-  async getResponseTimeByCategory(tenantId, filters = {}) {
-    const match = this.buildMatch(tenantId, filters);
-    const rows = await this.tickets
-      .aggregate([
-        { $match: { ...match, category: { $type: "string", $ne: "" } } },
-        ...this.firstReplyStages(match.tenantId),
-        { $group: { _id: "$category", avgMs: { $avg: "$responseMs" } } },
-        { $sort: { avgMs: -1 } },
-      ])
-      .toArray();
-    return rows.map((r) => ({
-      category: r._id,
-      avgResponseTime: msToHours(r.avgMs),
-    }));
-  }
-
-  /** Everything the Analytics tab shows, for one set of filters. */
-  async getAnalytics(tenantId, filters = {}) {
-    const match = this.buildMatch(tenantId, filters); // validates filters once, up front
-    const year =
-      match.createdAt && match.createdAt.$lte
-        ? match.createdAt.$lte.getUTCFullYear()
-        : new Date().getUTCFullYear();
-
-    const [slaByPriority, responseTimeByCategory, quarterlyMetrics] =
-      await Promise.all([
-        this.getSLAByPriority(tenantId, filters),
-        this.getResponseTimeByCategory(tenantId, filters),
-        this.getQuarterlyMetrics(tenantId, year, filters),
-      ]);
 
     return {
+      ticketsByPriority: countBy(tickets, "priority"),
+      responseTimeByCategory: Object.entries(responseByCategory)
+        .map(([category, list]) => ({
+          category,
+          avgResponseTime: averageHours(list),
+        }))
+        .sort((a, b) => b.avgResponseTime - a.avgResponseTime),
+      quarterlyMetrics,
       filters: {
         startDate: filters.startDate || null,
         endDate: filters.endDate || null,
-        priority: match.priority || null,
-        category: match.category || null,
+        priority: filters.priority || null,
+        category: filters.category || null,
         year,
       },
-      slaByPriority,
-      responseTimeByCategory,
-      quarterlyMetrics,
     };
   }
 
-  // ============================================
-  // CSV EXPORT
-  // ============================================
+  async exportTicketsCsv(tenantId, filters = {}) {
+    const [tickets, staff] = await Promise.all([
+      this.findTickets(tenantId, filters),
+      this.users
+        .find({
+          tenantId: mustObjectId(tenantId, "tenant id"),
+          role: { $in: STAFF_ROLES },
+        })
+        .toArray(),
+    ]);
+    const names = new Map(staff.map((u) => [String(u._id), u.name]));
+    const header = [
+      "Ticket ID",
+      "Opened At",
+      "Closed At",
+      "Status",
+      "Priority",
+      "Category",
+      "Customer ID",
+      "Agent",
+      "Description",
+    ];
+    const rows = tickets
+      .sort((a, b) => b.openedAt - a.openedAt)
+      .slice(0, EXPORT_ROW_LIMIT)
+      .map((t) => [
+        t.ticketId,
+        t.openedAt,
+        t.closedAt,
+        t.status,
+        t.priority,
+        t.category,
+        t.customerId,
+        t.agentId ? names.get(String(t.agentId)) || "" : "",
+        t.description,
+      ]);
+    const lines = [header, ...rows].map((row) =>
+      row.map(AnalyticsController.csvCell).join(",")
+    );
+    return lines.join("\r\n") + "\r\n";
+  }
 
   static csvCell(value) {
     if (value === null || value === undefined) return "";
@@ -408,77 +234,6 @@ class AnalyticsController {
     // Stop spreadsheet apps from running cell contents as formulas
     if (/^[-=+@\t\r]/.test(text)) text = `'${text}`;
     return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  }
-
-  async exportTicketsCsv(tenantId, filters = {}) {
-    const match = this.buildMatch(tenantId, filters);
-    const [labels, tickets, staff] = await Promise.all([
-      PRIORITY_LABELS,
-      this.tickets
-        .find(match)
-        .project({
-          title: 1,
-          category: 1,
-          priority: 1,
-          status: 1,
-          source: 1,
-          assigneeId: 1,
-          createdAt: 1,
-          resolvedAt: 1,
-          slaDueAt: 1,
-          slaStatus: 1,
-        })
-        .sort({ createdAt: -1 })
-        .limit(EXPORT_ROW_LIMIT)
-        .toArray(),
-      this.users
-        .find({ tenantId: match.tenantId })
-        .project({ name: 1 })
-        .toArray(),
-    ]);
-
-    const names = Object.fromEntries(staff.map((u) => [String(u._id), u.name]));
-    const header = [
-      "Ticket ID",
-      "Title",
-      "Category",
-      "Priority",
-      "Status",
-      "Source",
-      "Assignee",
-      "Created At",
-      "Resolved At",
-      "SLA Due At",
-      "SLA Status",
-      "Resolution Hours",
-    ];
-
-    const lines = [header.join(",")];
-    for (const t of tickets) {
-      const resolutionHours =
-        t.resolvedAt && t.createdAt
-          ? msToHours(new Date(t.resolvedAt) - new Date(t.createdAt))
-          : "";
-      lines.push(
-        [
-          t._id,
-          t.title,
-          t.category,
-          labels[t.priority] || t.priority,
-          t.status,
-          t.source,
-          t.assigneeId ? names[String(t.assigneeId)] || "" : "",
-          t.createdAt,
-          t.resolvedAt,
-          t.slaDueAt,
-          t.slaStatus,
-          resolutionHours,
-        ]
-          .map(AnalyticsController.csvCell)
-          .join(",")
-      );
-    }
-    return lines.join("\r\n") + "\r\n";
   }
 }
 

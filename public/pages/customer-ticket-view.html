@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>View Ticket</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="../css/pages/customer-ticket-view.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container" id="ticket-view-header">
+        <a
+          class="btn btn-outline-secondary"
+          href="/pages/customer-dashboard.html"
+          >Back to Dashboard</a
+        >
+        <div class="container">
+          <h1 id="ticket-title">Viewing Ticket #000</h1>
+          <label id="ticket-company">Issued to: COMPANY NAME</label>
+        </div>
+        <button class="btn btn-outline-secondary" id="logout-btn">
+          Log Out
+        </button>
+      </div>
+    </header>
+    <hr />
+    <div class="container">
+      <div class="row">
+        <div class="col">stage</div>
+        <div class="col">stage</div>
+        <div class="col">stage</div>
+      </div>
+      <div class="space"></div>
+      <div class="row">
+        <div class="col">
+          <div class="info-box">
+            <label>Issue desciption:</label>
+            <p id="ticket-description">DESCRIPTION .......</p>
+          </div>
+        </div>
+      </div>
+      <div class="space"></div>
+      <div class="row">
+        <div class="box">
+          <h2>Comments</h2>
+          <div id="comment-container"></div>
+          <form id="comment-form">
+            <textarea
+              class="form-control"
+              id="comment-text"
+              rows="2"
+              maxlength="2000"
+              required
+            ></textarea>
+            <p class="text-danger" id="comment-error"></p>
+            <button type="submit" class="btn btn-primary" id="comment-submit">
+              Send
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="space"></div>
+      <div class="row mb-5">
+        <div class="col">
+          <button class="btn btn-outline-danger" id="close-ticket-btn">
+            Close Ticket
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="close-modal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <form class="modal-content" id="close-form">
+          <div class="modal-header">
+            <h3 class="modal-title fs-5">Do you want to close this ticket?</h3>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="close-reason"
+                id="reason-fixed"
+                value="fixed"
+              />
+              <label class="form-check-label" for="reason-fixed"
+                >My problem was fixed.</label
+              >
+            </div>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="close-reason"
+                id="reason-no-longer-issue"
+                value="no_longer_issue"
+              />
+              <label class="form-check-label" for="reason-no-longer-issue"
+                >My problem is no longer an issue anymore.</label
+              >
+            </div>
+            <p class="text-danger mt-2 mb-0" id="close-error"></p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Keep this ticket
+            </button>
+            <button type="submit" class="btn btn-danger" id="close-submit">
+              Close this ticket
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+      crossorigin="anonymous"
+    ></script>
+    <script type="module" src="../js/customer/ticket-view.js"></script>
+  </body>
+</html>
