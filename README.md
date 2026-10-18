@@ -167,17 +167,11 @@ Tool: Claude by Anthropic (claude.ai), model Claude Opus 5.5
 
 Prompts used:
 
-- "Check for bugs and ensure the smooth flow and no hiccups, if there are any please make changes."
-- "This is deployed on Vercel, so make the existing code work with it."
-- "The company only holds its prompt file; every rule for priority will be in the prompt."
-- "Remove the SLA and use Emily's names in the design. Priority will be different for different companies, so it will be in the prompt, not in the database. Make the corresponding changes in my code to integrate her code and merge them."
-- "Check the code for any bugs, ensure smooth flow in every option, remove unnecessary code and check the database schemas."
-- "Check the rubric, except for the docs, README file or Google Form."
-- "Why was escalation removed? Create it: only an agent can escalate a ticket, up to the admins."
-- "Check and ensure that after any operation, such as Mark as completed, the Opened, In Progress and other data stay consistent and render on the page."
-- "Put all pages on the same Bootstrap version."
-- "Do we require so much demo data? Keep it small for a smooth live demo."
-- "Build an email endpoint to receive emails, explain how an email is sorted to its company and put in the queue as a flow chart, and update the README."
+- "Check the code for any bugs, ensure smooth flow in every option, remove unnecessary code, and check the database schemas."
+- "Check the rubric, except for the docs, README file, or Google Form."
+- "Check and ensure that after any operation, such as Mark as completed, the Opened, In Progress, and other data stay consistent and render on the page."
+- "Above is the error I am getting during deployment on Vercel; please say what changes are required to solve it"
+- "Create some demo data for a healthcare company"
 - "Use the same template as my Project 1 README, remove unnecessary text and sections, and put the SVG in the Screenshot section."
 
 ### Emily Huang
