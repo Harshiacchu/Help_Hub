@@ -1,5 +1,5 @@
 import { requestJson } from "../common/api.js";
-import { refreshWhenShown } from "../common/ui.js";
+import { refreshWhenShown, showSignedIn, statusBadge } from "../common/ui.js";
 
 const ticketForm = document.querySelector("#ticket-form");
 const descriptionInput = document.querySelector("#ticket-form-text-area");
@@ -42,13 +42,14 @@ const formatDate = (value) =>
 // Builds a ticket card using textContent
 function buildTicketCard(ticket) {
   const card = document.createElement("a");
-  card.className = "ticket";
+  card.className = "ticket h-auto"; // grows to fit long descriptions
   card.href = `/pages/customer-ticket-view.html?id=${ticket.ticketId}`;
 
   const header = document.createElement("div");
   header.className = "ticket-header";
   const id = document.createElement("p");
-  id.textContent = `Ticket #${ticket.ticketId}`;
+  id.textContent = `Ticket #${ticket.ticketId} `;
+  id.append(statusBadge(ticket.status));
   const date = document.createElement("p");
   date.textContent = `${formatDate(ticket.openedAt)}`;
   header.append(id, date);
@@ -145,5 +146,6 @@ async function loadTickets() {
 const customer = await requireCustomer();
 if (!customer) throw new Error("Redirecting");
 document.querySelector("h1").textContent = `Welcome, ${customer.name}`;
+showSignedIn(customer);
 loadTickets();
 refreshWhenShown(loadTickets); // stay current when the customer comes back to this page

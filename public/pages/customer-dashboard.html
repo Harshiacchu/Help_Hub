@@ -10,35 +10,53 @@
       integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
       crossorigin="anonymous"
     />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/components/navbar.css" />
     <link rel="stylesheet" href="../css/pages/customer-dashboard.css" />
   </head>
   <body>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">HelpHub Customer Portal</span>
+        <div>
+          <span id="navbar-user" class="text-light me-3"></span>
+          <button
+            type="button"
+            id="logout-btn"
+            class="btn btn-sm btn-outline-light"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
     <header>
       <div class="container">
         <h1>Welcome, User</h1>
-        <button class="btn btn-outline-secondary" id="logout-btn">
-          Log Out
-        </button>
       </div>
     </header>
     <hr />
     <div class="container">
-      <div class="row g-20">
-        <div class="col">
+      <div class="row g-4">
+        <div class="col-12 col-lg-2">
           <button class="btn btn-primary" id="new-ticket-btn">
             + Submit A New Ticket
           </button>
         </div>
-        <div class="col box" id="in-progress-box">
-          <h2>Your In-Progress Tickets</h2>
-          <div class="ticket-container overflow-auto">
-            <!--The customer's in progress tickets show up here-->
+        <div class="col-12 col-md-6 col-lg-5">
+          <div class="box d-flex flex-column" id="in-progress-box">
+            <h2>Your In-Progress Tickets</h2>
+            <div class="ticket-container flex-grow-1 overflow-auto">
+              <!--The customer's in progress tickets show up here-->
+            </div>
           </div>
         </div>
-        <div class="col box" id="completed-box">
-          <h2>Your Completed Tickets</h2>
-          <div class="ticket-container overflow-auto">
-            <!--The customer's closed tickets show up here-->
+        <div class="col-12 col-md-6 col-lg-5">
+          <div class="box d-flex flex-column" id="completed-box">
+            <h2>Your Completed Tickets</h2>
+            <div class="ticket-container flex-grow-1 overflow-auto">
+              <!--The customer's closed tickets show up here-->
+            </div>
           </div>
         </div>
       </div>

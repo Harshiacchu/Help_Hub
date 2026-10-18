@@ -1,5 +1,5 @@
 import { requestJson } from "../common/api.js";
-import { refreshWhenShown } from "../common/ui.js";
+import { refreshWhenShown, showSignedIn, statusBadge } from "../common/ui.js";
 
 const DASHBOARD_PAGE = "/pages/agent-dashboard.html";
 const commentInternal = document.querySelector("#comment-internal");
@@ -39,10 +39,13 @@ async function requireStaff() {
 
 const me = await requireStaff();
 if (!me) throw new Error("Redirecting");
+showSignedIn(me);
 
 // Admins open escalated tickets here too; send them back to their own dashboard
 if (me.role === "superior") {
   document.querySelector("#back-link").href = "/pages/admin-dashboard.html";
+  document.querySelector("#navbar-brand").textContent =
+    "HelpHub Admin Dashboard";
 }
 
 const title = document.querySelector("#ticket-title");
@@ -63,12 +66,6 @@ const escalateSubmit = document.querySelector("#escalate-submit");
 const escalateCancel = document.querySelector("#escalate-cancel");
 
 const DONE_STATUSES = ["Completed", "Closed"];
-const STATUS_TEXT = {
-  Opened: "Opened",
-  InProgress: "In progress",
-  Completed: "Completed",
-  Closed: "Closed",
-};
 const ESCALATION_REASONS = {
   needs_approval: "Needs an admin's approval",
   beyond_access: "Outside what I can resolve",
@@ -112,7 +109,7 @@ async function loadTicketInfo() {
     source.textContent =
       (channel || "Customer portal") +
       (data.fromEmail ? ` (from ${data.fromEmail})` : "");
-    status.textContent = STATUS_TEXT[data.status] || data.status;
+    status.replaceChildren(statusBadge(data.status));
     const done = DONE_STATUSES.includes(data.status);
     completeBtn.hidden = done; // nothing left to complete
     showEscalation(data, done);

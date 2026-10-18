@@ -10,13 +10,30 @@
       integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
       crossorigin="anonymous"
     />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/components/navbar.css" />
     <link rel="stylesheet" href="../css/pages/customer-ticket-view.css" />
   </head>
   <body>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">HelpHub Customer Portal</span>
+        <div>
+          <span id="navbar-user" class="text-light me-3"></span>
+          <button
+            type="button"
+            id="logout-btn"
+            class="btn btn-sm btn-outline-light"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
     <header>
       <div class="container" id="ticket-view-header">
         <a
-          class="btn btn-outline-secondary"
+          class="btn btn-outline-secondary text-nowrap"
           href="/pages/customer-dashboard.html"
           >Back to Dashboard</a
         >
@@ -24,9 +41,6 @@
           <h1 id="ticket-title">Viewing Ticket #000</h1>
           <label id="ticket-company">Issued to: COMPANY NAME</label>
         </div>
-        <button class="btn btn-outline-secondary" id="logout-btn">
-          Log Out
-        </button>
       </div>
     </header>
     <hr />
@@ -43,7 +57,7 @@
       </div>
       <div class="space"></div>
       <div class="row">
-        <div class="box">
+        <div class="box h-auto">
           <h2>Comments</h2>
           <div id="comment-container"></div>
           <p class="text-muted" id="comment-closed" hidden>

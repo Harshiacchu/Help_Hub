@@ -1,5 +1,5 @@
 import { requestJson } from "../common/api.js";
-import { refreshWhenShown } from "../common/ui.js";
+import { refreshWhenShown, showSignedIn, statusBadge } from "../common/ui.js";
 
 const title = document.querySelector("#ticket-title");
 const company = document.querySelector("#ticket-company");
@@ -21,12 +21,10 @@ const closeModal = bootstrap.Modal.getOrCreateInstance(
 
 const DONE_STATUSES = ["Completed", "Closed"];
 
-// How each status is shown to the customer
-const STATUS_TEXT = {
-  Opened: "Opened - waiting for an agent",
-  InProgress: "In progress - an agent is working on it",
-  Completed: "Completed",
-  Closed: "Closed",
+// What an unfinished status means for the customer, shown after the badge
+const STATUS_HINTS = {
+  Opened: "waiting for an agent",
+  InProgress: "an agent is working on it",
 };
 
 const DASHBOARD_PAGE = "/pages/customer-dashboard.html";
@@ -73,7 +71,10 @@ async function loadTicketInfo() {
     title.textContent = `Viewing Ticket #${data.ticketId}`;
     company.textContent = `Issued to: ${customer.tenantName}`;
     description.textContent = `${data.description}`;
-    status.textContent = STATUS_TEXT[data.status] || data.status;
+    status.replaceChildren(
+      statusBadge(data.status),
+      STATUS_HINTS[data.status] ? ` ${STATUS_HINTS[data.status]}` : ""
+    );
     closeBtn.hidden = DONE_STATUSES.includes(data.status); // nothing to close
     // A finished ticket is closed: no more comments
     commentForm.hidden = DONE_STATUSES.includes(data.status);
@@ -198,6 +199,7 @@ logoutBtn.addEventListener("click", async () => {
 
 const customer = await requireCustomer();
 if (!customer) throw new Error("Redirecting");
+showSignedIn(customer);
 loadTicketInfo();
 loadComments();
 // Stay current when the customer comes back to this page

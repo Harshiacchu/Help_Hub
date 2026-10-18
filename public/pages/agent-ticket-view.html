@@ -10,13 +10,32 @@
       integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
       crossorigin="anonymous"
     />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/components/navbar.css" />
     <link rel="stylesheet" href="../css/pages/customer-ticket-view.css" />
   </head>
   <body>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1" id="navbar-brand"
+          >HelpHub Agent Dashboard</span
+        >
+        <div>
+          <span id="navbar-user" class="text-light me-3"></span>
+          <button
+            type="button"
+            id="logout-btn"
+            class="btn btn-sm btn-outline-light"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
     <header>
       <div class="container" id="ticket-view-header">
         <a
-          class="btn btn-outline-secondary"
+          class="btn btn-outline-secondary text-nowrap"
           id="back-link"
           href="/pages/agent-dashboard.html"
           >Back to Dashboard</a
@@ -25,9 +44,6 @@
           <h1 id="ticket-title">Viewing Ticket #000</h1>
           <label id="ticket-company">Issued to: COMPANY NAME</label>
         </div>
-        <button class="btn btn-outline-secondary" id="logout-btn">
-          Log Out
-        </button>
       </div>
     </header>
     <div class="container my-3">

@@ -1,5 +1,5 @@
 import { requestJson } from "../common/api.js";
-import { refreshWhenShown } from "../common/ui.js";
+import { refreshWhenShown, showSignedIn, statusBadge } from "../common/ui.js";
 
 const LOGIN_PAGE = "/pages/login.html";
 const ROLE_HOME = {
@@ -47,7 +47,10 @@ function buildTicketRow(ticket) {
   // Where the ticket came from: the customer portal, another system (API) or email
   const channel =
     { web: "Web", api: "API", email: "Email" }[ticket.source] || "Web";
-  details.textContent = `${ticket.category} · ${ticket.priority} priority · ${ticket.status} · via ${channel}`;
+  details.append(
+    statusBadge(ticket.status),
+    ` ${ticket.category} · ${ticket.priority} priority · via ${channel}`
+  );
   const description = document.createElement("p");
   description.className = "text-truncate";
   description.textContent = ticket.description;
@@ -223,5 +226,6 @@ logoutBtn.addEventListener("click", async () => {
 
 const agent = await requireAgent();
 if (!agent) throw new Error("Redirecting");
+showSignedIn(agent);
 loadTickets();
 refreshWhenShown(loadTickets); // stay current when the agent comes back to this page

@@ -70,3 +70,27 @@ export function refreshWhenShown(refresh) {
   });
   window.addEventListener("focus", run);
 }
+
+// Ticket statuses as colored badges, in the same colors as the admin
+// dashboard tiles: Opened yellow, In progress blue, Completed green, Closed gray
+const STATUS_BADGES = {
+  Opened: ["Opened", "text-bg-warning"],
+  InProgress: ["In progress", "text-bg-info"],
+  Completed: ["Completed", "text-bg-success"],
+  Closed: ["Closed", "text-bg-secondary"],
+};
+
+/** A colored badge for a ticket status. */
+export function statusBadge(status) {
+  const [label, color] = STATUS_BADGES[status] || [status, "text-bg-light"];
+  const badge = document.createElement("span");
+  badge.className = `badge ${color}`;
+  badge.textContent = label;
+  return badge;
+}
+
+/** Shows "Company - Name" in the top bar, like the admin dashboard. */
+export function showSignedIn(user) {
+  const slot = document.querySelector("#navbar-user");
+  if (slot) slot.textContent = `${user.tenantName} - ${user.name}`;
+}
