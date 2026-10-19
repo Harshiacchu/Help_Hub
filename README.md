@@ -9,7 +9,8 @@ Live site: https://help-hub-xtqe.vercel.app
 Sharthi Abhinay
 sharthiabhinay@gmail.com
 
-Emily Huang
+Emily Huang  
+huang.emil@northeastern.edu
 
 ## Class
 
@@ -35,7 +36,7 @@ Scrolling demo of the admin dashboard
 
 ## Video Demo
 
-A short narrated walkthrough: _add the video link_
+A short narrated walkthrough: https://youtu.be/dsNG-FcsoJI 
 
 ## Presentation Slides
 
@@ -176,11 +177,16 @@ Prompts used:
 
 ### Emily Huang
 
-Tool: _Emily, add the AI tool you used (or "None")_
+Tool: Claude by Anthropic (claude.ai), model Claude Opus 5.5
 
 Prompts used:
 
-- _Emily, add your prompts here_
+- "Write up a simple documentation for the current files and folders. Keep it short."
+- "What are ways to check that my seed script is correctly generating mock data. Is there anything I should be careful of?"
+- "Roleplay a senior software engineer. you want to add a feature that  let's a customer submit a ticket that then gets viewed by an agent. eventually you also want the tickets to be automatically created when a customer submits a call or sends in an email. you also want to store the user data in some sort of database using mongodb. What are potential pitfalls to be careful of?
+- "What is a password hash? How is it commonly used?"
+- "I am testing a customer dashboard with login and multiple webpages. What are specific edge cases I can test for?"
+
 
 ## Sources and References
 
