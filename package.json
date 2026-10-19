@@ -21,10 +21,8 @@
     "support",
     "tickets"
   ],
-  "authors": [
-    "Abhinay Sharthi",
-    "Emily Huang"
-  ],
+  "author": "Sharthi Abhinay and Emily Huang",
+  "license": "MIT",
   "engines": {
     "node": ">=18"
   },
